@@ -1,0 +1,25 @@
+<html>
+  <head>
+    <script type="text/javascript" src="sylvester.js"></script>
+    <script type="text/javascript" src="projection.js"></script>
+    <script type="text/javascript">
+      function testing(){
+        var c = document.getElementById("canvas");
+        var eng = new PEngine(c);
+        window.scaleFactor = 1;
+        var t = setInterval("demo()",1000);
+      }
+    </script>
+  </head>
+  <body onload = "testing();">
+    <br>
+    <br>
+    <br>
+    <br>
+    <div align="center">
+      <canvas id="canvas" width="550" height="550" style="border:solid;">
+      projection canvas
+      </canvas>
+    </div>
+  </body>
+</html>
