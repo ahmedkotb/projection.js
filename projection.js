@@ -7,6 +7,45 @@ if (window.addEventListener)
 	window.addEventListener('DOMMouseScroll', wheel, false);
 window.onmousewheel = document.onmousewheel = wheel;
 
+/* wheel function */
+function wheel(event){
+	var delta = 0;
+	if (!event) event = window.event;
+	if (event.wheelDelta) {
+		delta = event.wheelDelta/120;
+		if (window.opera) delta = -delta;
+	} else if (event.detail) {
+		delta = -event.detail/3;
+	}
+	if (delta){
+		if (delta < 0)
+			window.scaleFactor -= 0.1;
+		else
+			window.scaleFactor += 0.1;
+	}
+}
+
+function onMouseDown(e){
+	this.down = true;
+	this.sx = e.pageX;
+	this.sy = e.pageY;
+}
+
+function onMouseMove(e){
+	if(this.down){
+		var dx = e.pageX-this.sx;
+		var dy = e.pageY-this.sy;
+		/*window.pengine.move(1 * dx/canvas.width,1 * dy/canvas.height,0);*/
+		window.panX = dx;
+		window.panY = dy;
+		window.pengine.refresh();
+	}
+}
+
+function onMouseUp(){
+	this.down = false;
+}
+
 function PEngine(canvas){
 	if (canvas.getContext){
 		this.ctx = canvas.getContext("2d");
@@ -20,10 +59,6 @@ function PEngine(canvas){
 		this.f = -20;
 		this.nx = canvas.width;
 		this.ny = canvas.height;
-		//camera parameters
-		this.pov= new Point(3,3,3);
-		this.gv = new Point(0,0,0).subtract(this.pov);
-		this.tv = new Point(0,0,1);
 
 		canvas.onmouseup = onMouseUp;
 		canvas.onmousedown = onMouseDown;
@@ -33,7 +68,18 @@ function PEngine(canvas){
 		window.panX = 0;
 		window.panY = 0;
 		window.scaleFactor = 1;
+		this.init();
+		this.refresh();
+	}else{
+		alert("canvas is not supported");
+	}
+}
 
+PEngine.prototype.init = function(){
+		//camera parameter
+		this.pov= new Point(3,3,3);
+		this.gv = new Point(0,0,0).subtract(this.pov);
+		this.tv = new Point(0,0,1);
 		//init cam coordinates
 		this.w = this.gv.divideScaler(this.gv.modulus()).multiplyScaler(-1);
 		this.u = this.tv.cross(this.w).divideScaler(this.tv.cross(this.w).modulus());
@@ -77,49 +123,7 @@ function PEngine(canvas){
 					]);
 			var mv = mCamRotate.x(mCamTrans);
 			this.m = mo.x(mv);
-			this.refresh();
 		}
-	}else{
-		alert("canvas is not supported");
-	}
-}
-
-function wheel(event){
-	var delta = 0;
-	if (!event) event = window.event;
-	if (event.wheelDelta) {
-		delta = event.wheelDelta/120;
-		if (window.opera) delta = -delta;
-	} else if (event.detail) {
-		delta = -event.detail/3;
-	}
-	if (delta){
-		if (delta < 0)
-			window.scaleFactor -= 0.1;
-		else
-			window.scaleFactor += 0.1;
-	}
-}
-
-function onMouseDown(e){
-	this.down = true;
-	this.sx = e.pageX;
-	this.sy = e.pageY;
-}
-
-function onMouseMove(e){
-	if(this.down){
-		var dx = e.pageX-this.sx;
-		var dy = e.pageY-this.sy;
-		/*window.pengine.move(1 * dx/canvas.width,1 * dy/canvas.height,0);*/
-		window.panX = dx;
-		window.panY = dy;
-		window.pengine.refresh();
-	}
-}
-
-function onMouseUp(){
-	this.down = false;
 }
 
 PEngine.prototype.draw = function(shape){
@@ -187,7 +191,32 @@ PEngine.prototype.drawGrid = function(){
 		this.draw(l2);
 	}
 }
+//-----------------------------------------------------
+//Triangle Object
+function Triangle (p1,p2,p3){
+	this.p1 = p1;
+	this.p2 = p2;
+	this.p3 = p3;
+	this.color = "black";
+}
 
+Triangle.prototype.inspect = function(){
+	return "p1 : " + this.p1.inspect() + "\np2: " + this.p1.inspect() + "\np3: " + this.p3.inspect();
+}
+
+Triangle.prototype.draw = function(ctx,matrix){
+	ctx.fillStyle = this.color;
+	ctx.beginPath();
+	var pp1 = this.p1.projection(matrix);
+	var pp2 = this.p2.projection(matrix);
+	var pp3 = this.p3.projection(matrix);
+	ctx.moveTo(pp1.x,pp1.y);
+	ctx.lineTo(pp2.x,pp2.y);
+	ctx.lineTo(pp3.x,pp3.y);
+	ctx.lineTo(pp1.x,pp1.y);
+	ctx.fill();
+}
+//-----------------------------------------------------
 //Line Object
 function Line (start,end){
 	this.start = start;
@@ -211,6 +240,7 @@ Line.prototype.draw = function(ctx,matrix){
 	ctx.stroke();
 }
 
+//-----------------------------------------------------
 //Point Object
 function Point(x,y,z){
 	this.x = x;
@@ -261,24 +291,39 @@ Point.prototype.projection = function(matrix){
 }
 
 
+//-----------------------------------------------------
+// Testing code
 function demo(){
 	window.pengine.rotate(0,0,toRadians(15));
 	window.pengine.refresh();
-	var lines=[0,0,0,1,0,0,0,1,0,1,1,0,0,0,0,0,0,4,0,1,0,0,1,4,0,0,4,1,0,4,0,1,4,1,1,4,1,0,0,1,0,1,1,1,0,1,1,1,1,0,1,1.5,0,1,1,1,1,1.5,1,1,1.5,0,1,
-2,0,0,1.5,1,1,2,1,0,2,0,0,3,0,0,2,1,0,3,1,0,1,0,4,1,0,3,1,1,4,1,1,3,1,0,3,1.5,0,3,1,1,3,1.5,1,3,1.5,0,3,2,0,4,1.5,1,3,2,1,4,2,0,4,3,
-0,4,2,1,4,3,1,4,3,0,4,2,0,2,3,1,4,2,1,2,2,0,2,3,0,0,2,1,2,3,1,0,0,0,4,0,1,4,1,0,4,1,1,4,2,0,4,2,1,4,3,0,4,3,1,4,1,0,3,1,1,3,1.5,0,3,1.5,1,3,
-	0,0,0,0,1,0,1,0,0,1,1,0,1,0,1,1,1,1,1.5,0,1,1.5,1,1,2,0,0,2,1,0,3,0,0,3,1,0,2,0,2,2,1,2];
-	k(new Point(-5,1,0),lines);
-	lines = [0,0,0,0,0,4,0,0,0,3,0,0,0,0,4,3,0,4,3,0,4,3,0,0,1,0,1,1,0,3,1,0,1,2,0,1,1,0,3,2,0,3,2,0,3,2,0,1,
-				0,1,0,0,1,4,0,1,0,3,1,0,0,1,4,3,1,4,3,1,4,3,1,0,1,1,1,1,1,3,1,1,1,2,1,1,1,1,3,2,1,3,2,1,3,2,1,1,
-				0,0,0,0,1,0,3,0,0,3,1,0,0,0,4,0,1,4,3,0,4,3,1,4,1,0,1,1,1,1,2,0,1,2,1,1,1,0,3,1,1,3,2,0,3,2,1,3
-];
-	k(new Point(-1,1,0),lines);
-	lines = [1,0,0,2,0,0,1,0,0,1,0,3,2,0,0,2,0,3,1,0,3,0,0,3,0,0,3,0,0,4,0,0,4,3,0,4,3,0,4,3,0,3,3,0,3,2,0,3,
-					1,1,0,2,1,0,1,1,0,1,1,3,2,1,0,2,1,3,1,1,3,0,1,3,0,1,3,0,1,4,0,1,4,3,1,4,3,1,4,3,1,3,3,1,3,2,1,3,
-						1,0,0,1,1,0,2,0,0,2,1,0,0,0,3,0,1,3,0,0,4,0,1,4,1,0,3,1,1,3,2,0,3,2,1,3,3,0,3,3,1,3,3,0,4,3,1,4
-];
-	k(new Point(3,1,0),lines);
+	/*var lines=[0,0,0,1,0,0,0,1,0,1,1,0,0,0,0,0,0,4,0,1,0,0,1,4,0,0,4,1,0,4,0,1,4,1,1,4,1,0,0,1,0,1,1,1,0,1,1,1,1,0,1,1.5,0,1,1,1,1,1.5,1,1,1.5,0,1,*/
+	/*2,0,0,1.5,1,1,2,1,0,2,0,0,3,0,0,2,1,0,3,1,0,1,0,4,1,0,3,1,1,4,1,1,3,1,0,3,1.5,0,3,1,1,3,1.5,1,3,1.5,0,3,2,0,4,1.5,1,3,2,1,4,2,0,4,3,*/
+	/*0,4,2,1,4,3,1,4,3,0,4,2,0,2,3,1,4,2,1,2,2,0,2,3,0,0,2,1,2,3,1,0,0,0,4,0,1,4,1,0,4,1,1,4,2,0,4,2,1,4,3,0,4,3,1,4,1,0,3,1,1,3,1.5,0,3,1.5,1,3,*/
+	/*0,0,0,0,1,0,1,0,0,1,1,0,1,0,1,1,1,1,1.5,0,1,1.5,1,1,2,0,0,2,1,0,3,0,0,3,1,0,2,0,2,2,1,2];*/
+	/*k(new Point(-5,1,0),lines);*/
+	/*lines = [0,0,0,0,0,4,0,0,0,3,0,0,0,0,4,3,0,4,3,0,4,3,0,0,1,0,1,1,0,3,1,0,1,2,0,1,1,0,3,2,0,3,2,0,3,2,0,1,*/
+	/*0,1,0,0,1,4,0,1,0,3,1,0,0,1,4,3,1,4,3,1,4,3,1,0,1,1,1,1,1,3,1,1,1,2,1,1,1,1,3,2,1,3,2,1,3,2,1,1,*/
+	/*0,0,0,0,1,0,3,0,0,3,1,0,0,0,4,0,1,4,3,0,4,3,1,4,1,0,1,1,1,1,2,0,1,2,1,1,1,0,3,1,1,3,2,0,3,2,1,3*/
+	/*];*/
+	/*k(new Point(-1,1,0),lines);*/
+	/*lines = [1,0,0,2,0,0,1,0,0,1,0,3,2,0,0,2,0,3,1,0,3,0,0,3,0,0,3,0,0,4,0,0,4,3,0,4,3,0,4,3,0,3,3,0,3,2,0,3,*/
+	/*1,1,0,2,1,0,1,1,0,1,1,3,2,1,0,2,1,3,1,1,3,0,1,3,0,1,3,0,1,4,0,1,4,3,1,4,3,1,4,3,1,3,3,1,3,2,1,3,*/
+	/*1,0,0,1,1,0,2,0,0,2,1,0,0,0,3,0,1,3,0,0,4,0,1,4,1,0,3,1,1,3,2,0,3,2,1,3,3,0,3,3,1,3,3,0,4,3,1,4*/
+	/*];*/
+	/*k(new Point(3,1,0),lines);*/
+	var f1a = new Triangle(new Point(0,0,0),new Point(1,0,1),new Point(0,0,1));
+	f1a.color = "red";
+	window.pengine.draw(f1a);
+	var f1b = new Triangle(new Point(0,0,0),new Point(1,0,0),new Point(1,0,1));
+	f1b.color = "red";
+	window.pengine.draw(f1b);
+
+	var f2a = new Triangle(new Point(0,1,0),new Point(1,1,1),new Point(0,1,1));
+	f2a.color = "blue";
+	window.pengine.draw(f2a);
+	var f2b = new Triangle(new Point(0,1,0),new Point(1,1,0),new Point(1,1,1));
+	f2b.color = "blue";
+	window.pengine.draw(f2b);
 }
 
 function k(base,lines){
