@@ -29,16 +29,34 @@ function onMouseDown(e){
 	this.down = true;
 	this.sx = e.pageX;
 	this.sy = e.pageY;
+	this.pdx = 0;
+	this.pdy = 0;
 }
 
 function onMouseMove(e){
 	if(this.down){
 		var dx = e.pageX-this.sx;
 		var dy = e.pageY-this.sy;
-		/*window.pengine.move(1 * dx/canvas.width,1 * dy/canvas.height,0);*/
-		window.panX = dx;
-		window.panY = dy;
+
+		if (Math.abs(dx) < Math.abs(this.pdx)){
+			this.sx = e.pageX;
+			dx = 0;
+		}
+		if (Math.abs(dy) < Math.abs(this.pdy)){
+			this.sy = e.pageY;
+			dy = 0;
+		}
+		/*document.getElementById("debug").innerHTML = dx + "  " + dy + "\n" + this.pdx + "  " + this.pdy;*/
+		this.pdx = dx;
+		this.pdy = dy;
+		window.pengine.rotate(0,0,toRadians(-dx/canvas.width * 15));
+		window.pengine.rotate(toRadians(dy/canvas.height * 15),0,0);
+
+		/*window.panX = dx;*/
+		/*window.panY = dy;*/
+
 		window.pengine.refresh();
+		demo();
 	}
 }
 
@@ -68,6 +86,12 @@ function PEngine(canvas){
 		window.panX = 0;
 		window.panY = 0;
 		window.scaleFactor = 1;
+
+		//initial camera parameter
+		this.pov= new Point(3,3,3);
+		this.gv = new Point(0,0,0).subtract(this.pov);
+		this.tv = new Point(0,0,1);
+
 		this.init();
 		this.refresh();
 	}else{
@@ -76,10 +100,6 @@ function PEngine(canvas){
 }
 
 PEngine.prototype.init = function(){
-		//camera parameter
-		this.pov= new Point(3,3,3);
-		this.gv = new Point(0,0,0).subtract(this.pov);
-		this.tv = new Point(0,0,1);
 		//init cam coordinates
 		this.w = this.gv.divideScaler(this.gv.modulus()).multiplyScaler(-1);
 		this.u = this.tv.cross(this.w).divideScaler(this.tv.cross(this.w).modulus());
@@ -150,8 +170,26 @@ PEngine.prototype.rotate = function(xang,yang,zang){
 			[0,Math.sin(xang),Math.cos(xang),0],
 			[0,0,0,1],
 			]);
-	//TODO: rotation around y axis
-	this.m = this.m.x(zrot).x(xrot);
+	/*var yrot = $M([*/
+	/*[Math.cos(yang),0,Math.sin(yang),0],*/
+	/*[0,1,0,0],*/
+	/*[-Math.sin(yang),0,Math.cos(yang),0],*/
+	/*[0,0,0,1],*/
+	/*]);*/
+	var point = $M([[this.pov.x],[this.pov.y],[this.pov.z],[1]]);
+	var projection = zrot.x(point);
+	projection = xrot.x(projection);
+	/*projection = yrot.x(projection);*/
+	this.pov = new Point(projection.e(1,1),projection.e(2,1),projection.e(3,1));
+	//adjust gaze vector and stand up vector
+	this.gv = new Point(0,0,0).subtract(this.pov);
+	//TODO : ask about this sign hack
+	/*this.tv = new Point(0,0,this.pov.y/Math.abs(this.pov.y) * 3);*/
+	this.tv = new Point(0,0,3);
+
+	/*document.getElementById("debug").innerHTML = this.pov.inspect();*/
+	this.init();
+	this.refresh();
 }
 
 PEngine.prototype.move = function(dx,dy,dz){
@@ -294,8 +332,9 @@ Point.prototype.projection = function(matrix){
 //-----------------------------------------------------
 // Testing code
 function demo(){
-	window.pengine.rotate(0,0,toRadians(15));
-	window.pengine.refresh();
+	/*window.pengine.rotate(0,0,toRadians(15));*/
+	/*window.pengine.refresh();*/
+
 	/*var lines=[0,0,0,1,0,0,0,1,0,1,1,0,0,0,0,0,0,4,0,1,0,0,1,4,0,0,4,1,0,4,0,1,4,1,1,4,1,0,0,1,0,1,1,1,0,1,1,1,1,0,1,1.5,0,1,1,1,1,1.5,1,1,1.5,0,1,*/
 	/*2,0,0,1.5,1,1,2,1,0,2,0,0,3,0,0,2,1,0,3,1,0,1,0,4,1,0,3,1,1,4,1,1,3,1,0,3,1.5,0,3,1,1,3,1.5,1,3,1.5,0,3,2,0,4,1.5,1,3,2,1,4,2,0,4,3,*/
 	/*0,4,2,1,4,3,1,4,3,0,4,2,0,2,3,1,4,2,1,2,2,0,2,3,0,0,2,1,2,3,1,0,0,0,4,0,1,4,1,0,4,1,1,4,2,0,4,2,1,4,3,0,4,3,1,4,1,0,3,1,1,3,1.5,0,3,1.5,1,3,*/
