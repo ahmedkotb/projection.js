@@ -56,7 +56,6 @@ function onMouseMove(e){
 		/*window.panY = dy;*/
 
 		window.pengine.refresh();
-		demo();
 	}
 }
 
@@ -85,12 +84,15 @@ function PEngine(canvas){
 		window.pengine = this;
 		window.panX = 0;
 		window.panY = 0;
-		window.scaleFactor = 1;
+		window.scaleFactor = 2;
 
 		//initial camera parameter
 		this.pov= new Point(3,3,3);
 		this.gv = new Point(0,0,0).subtract(this.pov);
 		this.tv = new Point(0,0,1);
+
+		//init the tree
+		this.tree = makeTestTree();
 
 		this.init();
 		this.refresh();
@@ -155,6 +157,8 @@ PEngine.prototype.refresh = function(){
 	this.ctx.clearRect(0,0,canvas.width,canvas.height);
 	this.drawGrid();
 	this.drawAxes();
+
+	this.drawTree(this.tree,this.pov);
 }
 
 PEngine.prototype.rotate = function(xang,yang,zang){
@@ -229,6 +233,19 @@ PEngine.prototype.drawGrid = function(){
 		this.draw(l2);
 	}
 }
+
+PEngine.prototype.drawTree = function(tree,point){
+	if (tree == null) return;
+	if (tree.triangle.f(point) < 0){
+		this.drawTree(tree.positive,point);
+		this.draw(tree.triangle);
+		this.drawTree(tree.negative,point);
+	}else {
+		this.drawTree(tree.negative,point);
+		this.draw(tree.triangle);
+		this.drawTree(tree.positive,point);
+	}
+}
 //-----------------------------------------------------
 //Triangle Object
 function Triangle (p1,p2,p3){
@@ -254,6 +271,15 @@ Triangle.prototype.draw = function(ctx,matrix){
 	ctx.lineTo(pp1.x,pp1.y);
 	ctx.fill();
 }
+
+Triangle.prototype.f = function(point){
+	console.log(this.p1.inspect());
+	var v1 = this.p2.subtract(this.p1);
+	var v2 = this.p3.subtract(this.p1);
+	var v3 = point.subtract(this.p1);
+	return v1.cross(v2).dot(v3);
+}
+
 //-----------------------------------------------------
 //Line Object
 function Line (start,end){
@@ -330,9 +356,31 @@ Point.prototype.projection = function(matrix){
 
 
 //-----------------------------------------------------
+//Node Object
+function Node(triangle){
+	this.triangle = triangle;
+	this.negative = null;
+	this.positive = null;
+}
+
+Node.prototype.add = function(triangle){
+	if (this.triangle.f(triangle.p1) <= 0 && this.triangle.f(triangle.p2) <= 0 &&
+			this.triangle.f(triangle.p3) <= 0){
+		if (this.negative == null) this.negative = new Node(triangle);
+		else this.negative.add(triangle);
+	}else if (this.triangle.f(triangle.p1) >= 0 && this.triangle.f(triangle.p2) >= 0 &&
+			this.triangle.f(triangle.p3) >= 0){
+		if (this.positive == null) this.positive= new Node(triangle);
+		else this.positive.add(triangle);
+	}else{
+		alert ("error");
+	}
+}
+
+//-----------------------------------------------------
 // Testing code
 function demo(){
-	/*window.pengine.rotate(0,0,toRadians(15));*/
+	window.pengine.rotate(0,0,toRadians(5));
 	/*window.pengine.refresh();*/
 
 	/*var lines=[0,0,0,1,0,0,0,1,0,1,1,0,0,0,0,0,0,4,0,1,0,0,1,4,0,0,4,1,0,4,0,1,4,1,1,4,1,0,0,1,0,1,1,1,0,1,1,1,1,0,1,1.5,0,1,1,1,1,1.5,1,1,1.5,0,1,*/
@@ -350,19 +398,6 @@ function demo(){
 	/*1,0,0,1,1,0,2,0,0,2,1,0,0,0,3,0,1,3,0,0,4,0,1,4,1,0,3,1,1,3,2,0,3,2,1,3,3,0,3,3,1,3,3,0,4,3,1,4*/
 	/*];*/
 	/*k(new Point(3,1,0),lines);*/
-	var f1a = new Triangle(new Point(0,0,0),new Point(1,0,1),new Point(0,0,1));
-	f1a.color = "red";
-	window.pengine.draw(f1a);
-	var f1b = new Triangle(new Point(0,0,0),new Point(1,0,0),new Point(1,0,1));
-	f1b.color = "red";
-	window.pengine.draw(f1b);
-
-	var f2a = new Triangle(new Point(0,1,0),new Point(1,1,1),new Point(0,1,1));
-	f2a.color = "blue";
-	window.pengine.draw(f2a);
-	var f2b = new Triangle(new Point(0,1,0),new Point(1,1,0),new Point(1,1,1));
-	f2b.color = "blue";
-	window.pengine.draw(f2b);
 }
 
 function k(base,lines){
@@ -372,3 +407,39 @@ function k(base,lines){
 		window.pengine.draw(l);
 	}
 }
+
+function makeTestTree(){
+	var f1a = new Triangle(new Point(0,0,0),new Point(1,0,1),new Point(0,0,1));
+	f1a.color = "orange";
+	var f1b = new Triangle(new Point(0,0,0),new Point(1,0,0),new Point(1,0,1));
+	f1b.color = "orange";
+
+	var f2a = new Triangle(new Point(0,1,0),new Point(1,1,1),new Point(0,1,1));
+	var f2b = new Triangle(new Point(0,1,0),new Point(1,1,0),new Point(1,1,1));
+	f2a.color = "blue";
+	f2b.color = "blue";
+
+	var f3a = new Triangle(new Point(1,0,0),new Point(1,0,1),new Point(1,1,1));
+	f3a.color = "red";
+	var f3b = new Triangle(new Point(1,0,0),new Point(1,1,0),new Point(1,1,1));
+	f3b.color = "red";
+
+	var f4a = new Triangle(new Point(0,0,0),new Point(0,0,1),new Point(0,1,1));
+	var f4b = new Triangle(new Point(0,0,0),new Point(0,1,0),new Point(0,1,1));
+	f4a.color = "green";
+	f4b.color = "green";
+
+	var f5a = new Triangle(new Point(0,0,1),new Point(0,1,1),new Point(1,1,1));
+	var f5b = new Triangle(new Point(0,0,1),new Point(1,0,1),new Point(1,1,1));
+	f5a.color = "yellow";
+	f5b.color = "yellow";
+
+	root = new Node(f1a);
+	root.add(f1b);
+	root.add(f2a);root.add(f2b);
+	root.add(f3a);root.add(f3b);
+	root.add(f4a);root.add(f4b);
+	root.add(f5a);root.add(f5b);
+	return root;
+}
+
