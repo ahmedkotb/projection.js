@@ -23,6 +23,7 @@ function wheel(event){
 		else
 			window.scaleFactor += 0.1;
 	}
+	window.pengine.refresh();
 }
 
 function onMouseDown(e){
@@ -273,7 +274,6 @@ Triangle.prototype.draw = function(ctx,matrix){
 }
 
 Triangle.prototype.f = function(point){
-	console.log(this.p1.inspect());
 	var v1 = this.p2.subtract(this.p1);
 	var v2 = this.p3.subtract(this.p1);
 	var v3 = point.subtract(this.p1);
