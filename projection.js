@@ -254,6 +254,10 @@ function Triangle (p1,p2,p3){
 	this.p2 = p2;
 	this.p3 = p3;
 	this.color = "black";
+	//storing plane normal for efficiency
+	var v1 = this.p2.subtract(this.p1);
+	var v2 = this.p3.subtract(this.p1);
+	this.normal = v1.cross(v2);
 }
 
 Triangle.prototype.inspect = function(){
@@ -274,10 +278,7 @@ Triangle.prototype.draw = function(ctx,matrix){
 }
 
 Triangle.prototype.f = function(point){
-	var v1 = this.p2.subtract(this.p1);
-	var v2 = this.p3.subtract(this.p1);
-	var v3 = point.subtract(this.p1);
-	return v1.cross(v2).dot(v3);
+	return this.normal.dot(point.subtract(this.p1));
 }
 
 //-----------------------------------------------------
