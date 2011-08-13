@@ -1,3 +1,7 @@
+function debug(str){
+	document.getElementById("debug").innerHTML += str + "<br/>";
+}
+
 function toRadians(angle){
 	return angle * Math.PI / 360;
 }
@@ -47,7 +51,6 @@ function onMouseMove(e){
 			this.sy = e.pageY;
 			dy = 0;
 		}
-		/*document.getElementById("debug").innerHTML = dx + "  " + dy + "\n" + this.pdx + "  " + this.pdy;*/
 		this.pdx = dx;
 		this.pdy = dy;
 		window.pengine.rotate(0,0,toRadians(-dx/canvas.width * 15));
@@ -86,6 +89,7 @@ function PEngine(canvas){
 		window.panX = 0;
 		window.panY = 0;
 		window.scaleFactor = 2;
+		window.epsilon = 0.000001;
 
 		//initial camera parameter
 		this.pov= new Point(3,3,3);
@@ -158,7 +162,6 @@ PEngine.prototype.refresh = function(){
 	this.ctx.clearRect(0,0,canvas.width,canvas.height);
 	this.drawGrid();
 	this.drawAxes();
-
 	this.drawTree(this.tree,this.pov);
 }
 
@@ -175,6 +178,7 @@ PEngine.prototype.rotate = function(xang,yang,zang){
 			[0,Math.sin(xang),Math.cos(xang),0],
 			[0,0,0,1],
 			]);
+	//TODO: add y axis rotation
 	/*var yrot = $M([*/
 	/*[Math.cos(yang),0,Math.sin(yang),0],*/
 	/*[0,1,0,0],*/
@@ -192,7 +196,6 @@ PEngine.prototype.rotate = function(xang,yang,zang){
 	/*this.tv = new Point(0,0,this.pov.y/Math.abs(this.pov.y) * 3);*/
 	this.tv = new Point(0,0,3);
 
-	/*document.getElementById("debug").innerHTML = this.pov.inspect();*/
 	this.init();
 	this.refresh();
 }
@@ -258,10 +261,18 @@ function Triangle (p1,p2,p3){
 	var v1 = this.p2.subtract(this.p1);
 	var v2 = this.p3.subtract(this.p1);
 	this.normal = v1.cross(v2);
+	this.normal = this.normal.divideScaler(this.normal.modulus());
 }
 
 Triangle.prototype.inspect = function(){
 	return "p1 : " + this.p1.inspect() + "\np2: " + this.p1.inspect() + "\np3: " + this.p3.inspect();
+}
+
+Triangle.prototype.clone = function(){
+	var t = new Triangle(this.p1.clone(),this.p2.clone(),this.p3.clone());
+	t.color = this.color;
+	t.normal = this.normal;
+	return t;
 }
 
 Triangle.prototype.draw = function(ctx,matrix){
@@ -315,6 +326,10 @@ function Point(x,y,z){
 	this.color = "black";
 }
 
+Point.prototype.clone = function(){
+	return new Point(this.x,this.y,this.z);
+}
+
 Point.prototype.modulus = function(){
 	return Math.sqrt(this.x*this.x + this.y*this.y + this.z*this.z);
 }
@@ -337,6 +352,10 @@ Point.prototype.multiplyScaler= function(mag){
 
 Point.prototype.subtract = function(point){
 	return new Point(this.x-point.x,this.y-point.y,this.z-point.z);
+}
+
+Point.prototype.add= function(point){
+	return new Point(this.x+point.x,this.y+point.y,this.z+point.z);
 }
 
 Point.prototype.inspect = function(){
@@ -365,16 +384,61 @@ function Node(triangle){
 }
 
 Node.prototype.add = function(triangle){
-	if (this.triangle.f(triangle.p1) <= 0 && this.triangle.f(triangle.p2) <= 0 &&
-			this.triangle.f(triangle.p3) <= 0){
+
+	var fa = this.triangle.f(triangle.p1);
+	var fb = this.triangle.f(triangle.p2);
+	var fc = this.triangle.f(triangle.p3);
+	if (Math.abs(fa) <= window.epsilon) fa = 0;
+	if (Math.abs(fb) <= window.epsilon) fb = 0;
+	if (Math.abs(fc) <= window.epsilon) fc = 0;
+
+	if (fa <= 0 && fb <= 0 && fc <= 0){
 		if (this.negative == null) this.negative = new Node(triangle);
 		else this.negative.add(triangle);
-	}else if (this.triangle.f(triangle.p1) >= 0 && this.triangle.f(triangle.p2) >= 0 &&
-			this.triangle.f(triangle.p3) >= 0){
+	}else if (fa >= 0 && fb >= 0 && fc >= 0){
 		if (this.positive == null) this.positive= new Node(triangle);
 		else this.positive.add(triangle);
 	}else{
-		alert ("error");
+		var tmp;
+		//swap the points such that p3 is on one side
+		//and p1,p2 are on the other side of the plane
+		if (fa * fc >= 0){
+			tmp = fb;fb = fa;fa = fc;fc = tmp;
+			tmp = triangle.p2; triangle.p2 = triangle.p1; triangle.p1= triangle.p3;triangle.p3 = tmp;
+		}else if (fb * fc >= 0){
+			tmp = fa;fa= fb; fb = fc; fc = tmp;
+			tmp = triangle.p1; triangle.p1 = triangle.p2; triangle.p2 = triangle.p3; triangle.p3 = tmp;
+		}
+		//calculate the first point of intersection A
+		var n = this.triangle.normal;
+		//TODO : check that d is not changed by swapping the points of the triangle
+		var d = - this.triangle.normal.dot(this.triangle.p1);
+		var t = - (n.dot(triangle.p1) + d)/(n.dot(triangle.p3.subtract(triangle.p1)));
+		var A = triangle.p1.add(triangle.p3.subtract(triangle.p1).multiplyScaler(t));
+		//calculate the second point of intersection B
+		t = - (n.dot(triangle.p2) + d)/(n.dot(triangle.p3.subtract(triangle.p2)));
+		var B = triangle.p2.add(triangle.p3.subtract(triangle.p2).multiplyScaler(t));
+		/*B = new Point(0,0,0.5);*/
+		//create the three Triangles
+		var t1 = triangle.clone();
+		t1.p1 = triangle.p1.clone();t1.p2 = triangle.p2.clone(); t1.p3 = A.clone();
+		var t2 = triangle.clone();
+		t2.p1 = triangle.p2.clone();t2.p2 = B.clone(); t2.p3 = A.clone();
+		var t3 = triangle.clone();
+		t3.p1 = A.clone();t3.p2 = B.clone(); t3.p3 = triangle.p3.clone();
+		if (fc >= 0){
+			if (this.negative == null) this.negative = new Node(t1);
+			else this.negative.add(t1);
+			this.negative.add(t2);
+			if (this.positive == null) this.positive = new Node(t3);
+			else this.positive.add(t3);
+		}else{
+			if (this.positive == null) this.positive = new Node(t1);
+			else this.positive.add(t1);
+			this.positive.add(t2);
+			if (this.negative == null) this.negative = new Node(t3);
+			else this.negative.add(t3);
+		}
 	}
 }
 
@@ -434,6 +498,19 @@ function makeTestTree(){
 	var f5b = new Triangle(new Point(0,0,1),new Point(1,0,1),new Point(1,1,1));
 	f5a.color = "yellow";
 	f5b.color = "yellow";
+
+	/*var t1 = new Triangle(new Point(0,-1,0.5),new Point(1,0,0.5),new Point(0,1,0.5));*/
+	/*t1.color = "lightblue";*/
+	/*var t2 = new Triangle(new Point(0,0,0),new Point(1,0,0),new Point(0,0,1));*/
+	/*t2.color = "yellow";*/
+	/*root = new Node (t2);*/
+	/*var t3 = new Triangle(new Point(5,-5,0),new Point(5,5,0),new Point(-5,5,0));*/
+	/*t3.color = "lightgray";*/
+	/*var t4 = new Triangle(new Point(5,-5,0),new Point(-5,5,0),new Point(-5,-5,0));*/
+	/*t4.color = "lightgray";*/
+	/*root.add(t1);*/
+	/*root.add(t3);*/
+	/*root.add(t4);*/
 
 	root = new Node(f1a);
 	root.add(f1b);
