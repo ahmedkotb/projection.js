@@ -53,11 +53,16 @@ function onMouseMove(e){
 		}
 		this.pdx = dx;
 		this.pdy = dy;
-		window.pengine.rotate(0,0,toRadians(-dx/canvas.width * 15));
-		window.pengine.rotate(toRadians(dy/canvas.height * 15),0,0);
-
-		/*window.panX = dx;*/
-		/*window.panY = dy;*/
+		//rotate if left button is clicked
+		//pan if middle button is clicked
+		if (e.button == 0){
+			window.pengine.rotate(0,0,toRadians(-dx/canvas.width * 15));
+			window.pengine.rotate(toRadians(dy/canvas.height * 15),0,0);
+		}else if (e.button == 1){
+			canvas.style.cursor = "move";
+			window.panX += dx/canvas.width * 30;
+			window.panY += dy/canvas.height * 30;
+		}
 
 		window.pengine.refresh();
 	}
@@ -65,6 +70,7 @@ function onMouseMove(e){
 
 function onMouseUp(){
 	this.down = false;
+	canvas.style.cursor = "crosshair";
 }
 
 function PEngine(canvas){
@@ -84,6 +90,7 @@ function PEngine(canvas){
 		canvas.onmouseup = onMouseUp;
 		canvas.onmousedown = onMouseDown;
 		canvas.onmousemove = onMouseMove;
+		canvas.style.cursor = "crosshair";
 		//global variables
 		window.pengine = this;
 		window.panX = 0;
