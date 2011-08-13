@@ -400,11 +400,9 @@ Node.prototype.add = function(triangle){
 	if (Math.abs(fc) <= window.epsilon) fc = 0;
 
 	if (fa <= 0 && fb <= 0 && fc <= 0){
-		if (this.negative == null) this.negative = new Node(triangle);
-		else this.negative.add(triangle);
+		this.addNegativeNode(triangle);
 	}else if (fa >= 0 && fb >= 0 && fc >= 0){
-		if (this.positive == null) this.positive= new Node(triangle);
-		else this.positive.add(triangle);
+		this.addPositiveNode(triangle);
 	}else{
 		var tmp;
 		//swap the points such that p3 is on one side
@@ -425,7 +423,6 @@ Node.prototype.add = function(triangle){
 		//calculate the second point of intersection B
 		t = - (n.dot(triangle.p2) + d)/(n.dot(triangle.p3.subtract(triangle.p2)));
 		var B = triangle.p2.add(triangle.p3.subtract(triangle.p2).multiplyScaler(t));
-		/*B = new Point(0,0,0.5);*/
 		//create the three Triangles
 		var t1 = triangle.clone();
 		t1.p1 = triangle.p1.clone();t1.p2 = triangle.p2.clone(); t1.p3 = A.clone();
@@ -434,21 +431,38 @@ Node.prototype.add = function(triangle){
 		var t3 = triangle.clone();
 		t3.p1 = A.clone();t3.p2 = B.clone(); t3.p3 = triangle.p3.clone();
 		if (fc >= 0){
-			if (this.negative == null) this.negative = new Node(t1);
-			else this.negative.add(t1);
-			this.negative.add(t2);
-			if (this.positive == null) this.positive = new Node(t3);
-			else this.positive.add(t3);
+			if (fa != 0)
+				this.addNegativeNode(t1);
+			if (fb != 0)
+				this.addNegativeNode(t2);
+			if (fc != 0)
+				this.addPositiveNode(t3);
 		}else{
-			if (this.positive == null) this.positive = new Node(t1);
-			else this.positive.add(t1);
-			this.positive.add(t2);
-			if (this.negative == null) this.negative = new Node(t3);
-			else this.negative.add(t3);
+			if (fa != 0)
+				this.addPositiveNode(t1);
+			if (fb != 0)
+				this.addPositiveNode(t2);
+			if (fc != 0)
+				this.addNegativeNode(t3);
 		}
 	}
 }
 
+/* helper method */
+Node.prototype.addPositiveNode = function(triangle){
+	if (this.positive == null)
+		this.positive = new Node(triangle);
+	else
+		this.positive.add(triangle);
+}
+
+/* helper method */
+Node.prototype.addNegativeNode = function(triangle){
+	if (this.negative == null)
+		this.negative = new Node(triangle);
+	else
+		this.negative.add(triangle);
+}
 //-----------------------------------------------------
 // Testing code
 function demo(){
@@ -506,6 +520,13 @@ function makeTestTree(){
 	f5a.color = "yellow";
 	f5b.color = "yellow";
 
+	root = new Node(f1a);
+	root.add(f1b);
+	root.add(f2a);root.add(f2b);
+	root.add(f3a);root.add(f3b);
+	root.add(f4a);root.add(f4b);
+	root.add(f5a);root.add(f5b);
+
 	/*var t1 = new Triangle(new Point(0,-1,0.5),new Point(1,0,0.5),new Point(0,1,0.5));*/
 	/*t1.color = "lightblue";*/
 	/*var t2 = new Triangle(new Point(0,0,0),new Point(1,0,0),new Point(0,0,1));*/
@@ -519,12 +540,6 @@ function makeTestTree(){
 	/*root.add(t3);*/
 	/*root.add(t4);*/
 
-	root = new Node(f1a);
-	root.add(f1b);
-	root.add(f2a);root.add(f2b);
-	root.add(f3a);root.add(f3b);
-	root.add(f4a);root.add(f4b);
-	root.add(f5a);root.add(f5b);
 	return root;
 }
 
