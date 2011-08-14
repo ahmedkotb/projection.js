@@ -287,6 +287,10 @@ function Triangle (p1,p2,p3){
 	this.p3 = p3;
 	this.color = "black";
 	//storing plane normal for efficiency
+	this.calculateNormal();
+}
+
+Triangle.prototype.calculateNormal = function(){
 	var v1 = this.p2.subtract(this.p1);
 	var v2 = this.p3.subtract(this.p1);
 	this.normal = v1.cross(v2);
@@ -439,7 +443,7 @@ Node.prototype.add = function(triangle){
 		}
 		//calculate the first point of intersection A
 		var n = this.triangle.normal;
-		//TODO : check that d is not changed by swapping the points of the triangle
+
 		var d = - this.triangle.normal.dot(this.triangle.p1);
 		var t = - (n.dot(triangle.p1) + d)/(n.dot(triangle.p3.subtract(triangle.p1)));
 		var A = triangle.p1.add(triangle.p3.subtract(triangle.p1).multiplyScaler(t));
@@ -447,12 +451,16 @@ Node.prototype.add = function(triangle){
 		t = - (n.dot(triangle.p2) + d)/(n.dot(triangle.p3.subtract(triangle.p2)));
 		var B = triangle.p2.add(triangle.p3.subtract(triangle.p2).multiplyScaler(t));
 		//create the three Triangles
+		//also calculate their normals
 		var t1 = triangle.clone();
 		t1.p1 = triangle.p1.clone();t1.p2 = triangle.p2.clone(); t1.p3 = A.clone();
+		t1.calculateNormal();
 		var t2 = triangle.clone();
 		t2.p1 = triangle.p2.clone();t2.p2 = B.clone(); t2.p3 = A.clone();
+		t2.calculateNormal();
 		var t3 = triangle.clone();
 		t3.p1 = A.clone();t3.p2 = B.clone(); t3.p3 = triangle.p3.clone();
+		t3.calculateNormal();
 		if (fc >= 0){
 			if (fa != 0)
 				this.addNegativeNode(t1);
