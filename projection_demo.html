@@ -6,8 +6,16 @@
       function testing(){
         var c = document.getElementById("canvas");
         var eng = new PEngine(c);
-        demo();
         //var t = setInterval("demo()",1000);
+      }
+      function togglePerspectiveProjection(){
+        if (window.pengine.perspective){
+          window.pengine.setPerspective(false);
+          document.getElementById("perspectiveButton").innerHTML = "enable perspective projection";
+        }else{
+          window.pengine.setPerspective(true);
+          document.getElementById("perspectiveButton").innerHTML = "disable perpective projection";
+        }
       }
     </script>
   </head>
@@ -17,16 +25,15 @@
     <br>
     <br>
     <div align="center">
+      <button id= "perspectiveButton" onclick="togglePerspectiveProjection()" >
+        enable perspective projection
+      </button>
+      <br>
       <canvas id="canvas" width="550" height="550" style="border:solid;">
       projection canvas
       </canvas>
     </div>
-    <button onclick="window.pengine.rotate(toRadians(5),0,0);demo()"> up </button>
-    <div>
-    <button onclick="window.pengine.rotate(0,0,-toRadians(5));demo()"> right </button>
-    <button onclick="window.pengine.rotate(0,0,toRadians(5));demo()"> left </button>
-    </div>
-    <button onclick="window.pengine.rotate(-toRadians(5),0,0);demo()"> down </button>
+
     <div id="debug">
     </div>
   </body>

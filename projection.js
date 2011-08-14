@@ -87,6 +87,8 @@ function PEngine(canvas){
 		this.nx = canvas.width;
 		this.ny = canvas.height;
 
+		this.perspective = false;
+		//canvas setup
 		canvas.onmouseup = onMouseUp;
 		canvas.onmousedown = onMouseDown;
 		canvas.onmousemove = onMouseMove;
@@ -95,11 +97,11 @@ function PEngine(canvas){
 		window.pengine = this;
 		window.panX = 0;
 		window.panY = 0;
-		window.scaleFactor = 2;
+		window.scaleFactor = 1;
 		window.epsilon = 0.000001;
 
 		//initial camera parameter
-		this.pov= new Point(3,3,3);
+		this.pov= new Point(5,5,5);
 		this.gv = new Point(0,0,0).subtract(this.pov);
 		this.tv = new Point(0,0,1);
 
@@ -120,7 +122,7 @@ PEngine.prototype.init = function(){
 		this.v = this.w.cross(this.u);
 
 		with (this){
-		//create mo
+			//create mo (orthogonal projection matrix)
 			var mCanonical = $M([
 					[nx/2,0,0,(nx-1)/2],
 					[0,-ny/2,0,(ny-1)/2],
@@ -141,7 +143,15 @@ PEngine.prototype.init = function(){
 					);
 			var mo = (mCanonical.x(mProjScale)).x(mProjTrans);
 
-			//create mv
+			//compute mp (prespective projection matrix)
+			var mp = $M([
+					[n,0,0,0],
+					[0,n,0,0],
+					[0,0,n+f,-f*n],
+					[0,0,1,0]]
+					);
+
+			//create mv (viewport matrix)
 			var mCamRotate = $M([
 					[u.x,u.y,u.z,0],
 					[v.x,v.y,v.z,0],
@@ -156,8 +166,20 @@ PEngine.prototype.init = function(){
 					[0,0,0,1]
 					]);
 			var mv = mCamRotate.x(mCamTrans);
-			this.m = mo.x(mv);
+
+			/*this.m = mo.x(mv);*/
+			if (this.perspective)
+				this.m = mo.x(mp).x(mv);
+			else
+				this.m = mo.x(mv);
+
 		}
+}
+
+PEngine.prototype.setPerspective = function(value){
+	this.perspective = value;
+	this.init();
+	this.refresh();
 }
 
 PEngine.prototype.draw = function(shape){
@@ -219,9 +241,9 @@ PEngine.prototype.move = function(dx,dy,dz){
 
 PEngine.prototype.drawAxes = function(){
 	var org = new Point(0,0,0);
-	var xaxis = new Line(org,new Point(10,0,0));
-	var yaxis = new Line(org,new Point(0,10,0));
-	var zaxis = new Line(org,new Point(0,0,10));
+	var xaxis = new Line(org,new Point(7,0,0));
+	var yaxis = new Line(org,new Point(0,7,0));
+	var zaxis = new Line(org,new Point(0,0,7));
 	xaxis.thickness = 1;
 	xaxis.color = "red";
 	yaxis.thickness = 1;
@@ -329,6 +351,7 @@ function Point(x,y,z){
 	this.x = x;
 	this.y = y;
 	this.z = z;
+	this.h = 1;
 	this.thickness = 1;
 	this.color = "black";
 }
@@ -378,7 +401,7 @@ Point.prototype.draw = function(ctx,matrix){
 Point.prototype.projection = function(matrix){
 	var point = $M([[this.x *window.scaleFactor],[this.y * window.scaleFactor],[this.z * window.scaleFactor],[1]]);
 	var projection = matrix.x(point);
-	return new Point(projection.e(1,1) + window.panX,projection.e(2,1) + window.panY,0);
+	return new Point(projection.e(1,1)/projection.e(4,1) + window.panX,projection.e(2,1)/projection.e(4,1) + window.panY,0);
 }
 
 
