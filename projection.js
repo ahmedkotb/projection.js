@@ -76,6 +76,7 @@ function onMouseUp(){
 function PEngine(canvas){
 	if (canvas.getContext){
 		this.ctx = canvas.getContext("2d");
+		this.canvas = canvas;
 		//hardcoded parameters
 		//frustum parameters
 		this.l = -10;
@@ -101,15 +102,22 @@ function PEngine(canvas){
 		window.epsilon = 0.000001;
 
 		//initial camera parameter
-		this.pov= new Point(5,5,5);
+		this.pov= new Point(3,3,3);
 		this.gv = new Point(0,0,0).subtract(this.pov);
 		this.tv = new Point(0,0,1);
 
+		this.triangles = makeTestTriangles();
 		//init the tree
-		this.tree = makeTestTree();
+		this.tree = new Node(this.triangles[0]);
+		for (var i=1;i<this.triangles.length;++i){
+			this.tree.add(this.triangles[i]);
+		}
 
 		this.init();
 		this.refresh();
+
+		this.raytrace();
+
 	}else{
 		alert("canvas is not supported");
 	}
@@ -279,6 +287,49 @@ PEngine.prototype.drawTree = function(tree,point){
 		this.drawTree(tree.positive,point);
 	}
 }
+
+PEngine.prototype.raytrace = function(){
+	//TODO:make sure that canvas size is not change at run time
+	//or nx and ny will be wrong
+
+	for (var i=0;i<this.nx;++i){
+		for (var j=0;j<this.ny;++j){
+
+			var us = this.l + ((this.r-this.l) * (i+0.5))/this.nx;
+			var vs = this.b + ((this.t-this.b) * (this.ny-j+0.5))/this.ny;
+			var ws = this.n;
+
+			var s = this.pov.add(this.u.multiplyScaler(us).add(this.v.multiplyScaler(vs)).add(this.w.multiplyScaler(ws)));
+
+			var e;
+			if (this.perspective)
+				e = this.pov;
+			else
+				e = this.pov.add(this.u.multiplyScaler(us).add(this.v.multiplyScaler(vs)));
+
+			var min = null;
+			var mint = 100000000;
+			for (var tri=0;tri<this.triangles.length;++tri){
+				var o = this.triangles[tri];
+				var t = - (o.normal.dot(e) - o.normal.dot(o.p1))/o.normal.dot(s.subtract(e));
+				var A = e.add(s.subtract(e).multiplyScaler(t));
+				if (t < 0) continue;
+				if (t<mint && o.intersectsWithPoint(A)){
+					mint = t;
+					min = o;
+				}
+			}
+			if (min == null){
+				this.ctx.fillStyle = "black";
+				this.ctx.fillRect(i,j,1,1);
+			}else{
+				this.ctx.fillStyle = min.color;
+				this.ctx.fillRect(i,j,1,1);
+			}
+		}
+	}
+}
+
 //-----------------------------------------------------
 //Triangle Object
 function Triangle (p1,p2,p3){
@@ -298,7 +349,7 @@ Triangle.prototype.calculateNormal = function(){
 }
 
 Triangle.prototype.inspect = function(){
-	return "p1 : " + this.p1.inspect() + "\np2: " + this.p1.inspect() + "\np3: " + this.p3.inspect();
+	return "p1 : " + this.p1.inspect() + "\np2: " + this.p2.inspect() + "\np3: " + this.p3.inspect();
 }
 
 Triangle.prototype.clone = function(){
@@ -325,6 +376,30 @@ Triangle.prototype.f = function(point){
 	return this.normal.dot(point.subtract(this.p1));
 }
 
+/* tests if given point intersects this triangle */
+Triangle.prototype.intersectsWithPoint = function(point){
+	//TODO: the function will be used by raytracing , so the points
+	//given will already be in the plane of the triangle
+	//so first check can be removed for efficency
+	//first check that the point belongs to the same plane as the triangle
+	if (Math.abs(this.normal.dot(point) - this.normal.dot(this.p1)) > window.epsilon)
+		return false;
+	//second make sure point belongs to the triangle
+	var pts = [this.p1,this.p2,this.p3,this.p1,this.p2];
+	for (var i=0;i<3;++i){
+		var a = pts[i];
+		var b = pts[i+1];
+		var c = pts[i+2];
+		var v1 = b.subtract(a);
+		var v2 = point.subtract(a);
+		var v3 = c.subtract(a);
+		var res = v1.cross(v2).dot(v1.cross(v3));
+		if (Math.abs(res) < window.epsilon) res = 0;
+		if (res < 0)
+			return false;
+	}
+	return true;
+}
 //-----------------------------------------------------
 //Line Object
 function Line (start,end){
@@ -361,7 +436,10 @@ function Point(x,y,z){
 }
 
 Point.prototype.clone = function(){
-	return new Point(this.x,this.y,this.z);
+	var p = new Point(this.x,this.y,this.z);
+	p.color = this.color;
+	p.thickness = this.thickness;
+	return p;
 }
 
 Point.prototype.modulus = function(){
@@ -525,7 +603,8 @@ function k(base,lines){
 	}
 }
 
-function makeTestTree(){
+function makeTestTriangles(){
+
 	var f1a = new Triangle(new Point(0,0,0),new Point(1,0,1),new Point(0,0,1));
 	f1a.color = "orange";
 	var f1b = new Triangle(new Point(0,0,0),new Point(1,0,0),new Point(1,0,1));
@@ -550,6 +629,22 @@ function makeTestTree(){
 	var f5b = new Triangle(new Point(0,0,1),new Point(1,0,1),new Point(1,1,1));
 	f5a.color = "yellow";
 	f5b.color = "yellow";
+
+	var trs = [f1a,f1b,f2a,f2b,f3a,f3b,f4a,f4b,f5a,f5b];
+
+	return trs;
+	/*var t1 = new Triangle(new Point(0,-1,0.5),new Point(1,0,0.5),new Point(0,1,0.5));*/
+	/*t1.color = "lightblue";*/
+	/*var t2 = new Triangle(new Point(0,0,0),new Point(1,0,0),new Point(0,0,1));*/
+	/*t2.color = "yellow";*/
+	/*var t3 = new Triangle(new Point(5,-5,0),new Point(5,5,0),new Point(-5,5,0));*/
+	/*t3.color = "lightgray";*/
+	/*var t4 = new Triangle(new Point(5,-5,0),new Point(-5,5,0),new Point(-5,-5,0));*/
+	/*t4.color = "lightgray";*/
+	/*var trs = [t1,t2,t3,t4];*/
+}
+
+function makeTestTree(){
 
 	root = new Node(f1a);
 	root.add(f1b);
