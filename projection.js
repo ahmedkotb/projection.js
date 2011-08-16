@@ -116,8 +116,6 @@ function PEngine(canvas){
 		this.init();
 		this.refresh();
 
-		this.raytrace();
-
 	}else{
 		alert("canvas is not supported");
 	}
@@ -288,10 +286,9 @@ PEngine.prototype.drawTree = function(tree,point){
 	}
 }
 
-PEngine.prototype.raytrace = function(){
+PEngine.prototype.renderImage = function(){
 	//TODO:make sure that canvas size is not change at run time
 	//or nx and ny will be wrong
-
 	for (var i=0;i<this.nx;++i){
 		for (var j=0;j<this.ny;++j){
 
@@ -307,27 +304,33 @@ PEngine.prototype.raytrace = function(){
 			else
 				e = this.pov.add(this.u.multiplyScaler(us).add(this.v.multiplyScaler(vs)));
 
-			var min = null;
-			var mint = 100000000;
-			for (var tri=0;tri<this.triangles.length;++tri){
-				var o = this.triangles[tri];
-				var t = - (o.normal.dot(e) - o.normal.dot(o.p1))/o.normal.dot(s.subtract(e));
-				var A = e.add(s.subtract(e).multiplyScaler(t));
-				if (t < 0) continue;
-				if (t<mint && o.intersectsWithPoint(A)){
-					mint = t;
-					min = o;
-				}
-			}
-			if (min == null){
+			var obj = this.raytrace(s,e);
+
+			if (obj == null){
 				this.ctx.fillStyle = "black";
 				this.ctx.fillRect(i,j,1,1);
 			}else{
-				this.ctx.fillStyle = min.color;
+				this.ctx.fillStyle = obj.color;
 				this.ctx.fillRect(i,j,1,1);
 			}
 		}
 	}
+}
+
+PEngine.prototype.raytrace = function(s,e){
+	var min = null;
+	var mint = 100000000;
+	for (var tri=0;tri<this.triangles.length;++tri){
+		var o = this.triangles[tri];
+		var t = - (o.normal.dot(e) - o.normal.dot(o.p1))/o.normal.dot(s.subtract(e));
+		var A = e.add(s.subtract(e).multiplyScaler(t));
+		if (t < 0) continue;
+		if (t<mint && o.intersectsWithPoint(A)){
+			mint = t;
+			min = o;
+		}
+	}
+	return min;
 }
 
 //-----------------------------------------------------
