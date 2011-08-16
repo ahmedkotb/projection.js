@@ -73,6 +73,14 @@ function onMouseUp(){
 	canvas.style.cursor = "crosshair";
 }
 
+function setPixelColor(imageData,x,y,color){
+    var index = (x + y * imageData.width) * 4;
+    imageData.data[index+0] = color.r;
+    imageData.data[index+1] = color.g;
+    imageData.data[index+2] = color.b;
+    imageData.data[index+3] = color.a;
+}
+
 function PEngine(canvas){
 	if (canvas.getContext){
 		this.ctx = canvas.getContext("2d");
@@ -266,8 +274,8 @@ PEngine.prototype.drawGrid = function(){
 	for (var i=-5;i<=5;i++){
 		var l = new Line(new Point(i,-hlen,0),new Point(i,hlen,0));
 		var l2 = new Line(new Point(hlen,i,0),new Point(-hlen,i,0));
-		l.color = new RGB(200,200,200); //grey
-		l2.color = new RGB(200,200,200); //grey
+		l.color = new RGB(200,200,200); //gray
+		l2.color = new RGB(200,200,200); //gray
 		this.draw(l);
 		this.draw(l2);
 	}
@@ -289,6 +297,9 @@ PEngine.prototype.drawTree = function(tree,point){
 PEngine.prototype.renderImage = function(){
 	//TODO:make sure that canvas size is not change at run time
 	//or nx and ny will be wrong
+	var imageData = this.ctx.createImageData(this.nx,this.ny);
+	var backgroundColor = new RGB(0,0,0); //black
+
 	for (var i=0;i<this.nx;++i){
 		for (var j=0;j<this.ny;++j){
 
@@ -306,15 +317,14 @@ PEngine.prototype.renderImage = function(){
 
 			var obj = this.raytrace(s,e);
 
-			if (obj == null){
-				this.ctx.fillStyle = "black";
-				this.ctx.fillRect(i,j,1,1);
-			}else{
-				this.ctx.fillStyle = obj.color.str();
-				this.ctx.fillRect(i,j,1,1);
-			}
+			if (obj == null)
+				setPixelColor(imageData,i,j,backgroundColor);
+			else
+				setPixelColor(imageData,i,j,obj.color);
+
 		}
 	}
+	this.ctx.putImageData(imageData, 0, 0); // at coords 0,0
 }
 
 PEngine.prototype.raytrace = function(s,e){
@@ -495,6 +505,7 @@ function RGB(r,g,b){
 	this.r = r;
 	this.g = g;
 	this.b = b;
+	this.a = 0xff; // opaque
 }
 
 RGB.prototype.str = function(){
@@ -653,7 +664,13 @@ function makeTestTriangles(){
 	f5a.color = c;
 	f5b.color = c;
 
-	var trs = [f1a,f1b,f2a,f2b,f3a,f3b,f4a,f4b,f5a,f5b];
+	c = new RGB(200,200,200);
+	var f6a = new Triangle(new Point(3,-3,0),new Point(3,3,0),new Point(-3,3,0));
+	var f6b = new Triangle(new Point(3,-3,0),new Point(-3,3,0),new Point(-3,-3,0));
+	f6a.color = c;
+	f6b.color = c;
+
+	var trs = [f1a,f1b,f2a,f2b,f3a,f3b,f4a,f4b,f5a,f5b,f6a,f6b];
 
 	return trs;
 	/*var t1 = new Triangle(new Point(0,-1,0.5),new Point(1,0,0.5),new Point(0,1,0.5));*/
