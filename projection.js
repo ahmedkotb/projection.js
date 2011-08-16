@@ -251,11 +251,11 @@ PEngine.prototype.drawAxes = function(){
 	var yaxis = new Line(org,new Point(0,7,0));
 	var zaxis = new Line(org,new Point(0,0,7));
 	xaxis.thickness = 1;
-	xaxis.color = "red";
+	xaxis.color = new RGB(255,0,0); //red
 	yaxis.thickness = 1;
-	yaxis.color = "green";
+	yaxis.color = new RGB(0,255,0); //green
 	zaxis.thickness = 1;
-	zaxis.color = "blue";
+	zaxis.color = new RGB(0,0,255); //blue
 	this.draw(xaxis);
 	this.draw(yaxis);
 	this.draw(zaxis);
@@ -266,8 +266,8 @@ PEngine.prototype.drawGrid = function(){
 	for (var i=-5;i<=5;i++){
 		var l = new Line(new Point(i,-hlen,0),new Point(i,hlen,0));
 		var l2 = new Line(new Point(hlen,i,0),new Point(-hlen,i,0));
-		l.color = "rgb(200,200,200)";
-		l2.color = "rgb(200,200,200)";
+		l.color = new RGB(200,200,200); //grey
+		l2.color = new RGB(200,200,200); //grey
 		this.draw(l);
 		this.draw(l2);
 	}
@@ -310,7 +310,7 @@ PEngine.prototype.renderImage = function(){
 				this.ctx.fillStyle = "black";
 				this.ctx.fillRect(i,j,1,1);
 			}else{
-				this.ctx.fillStyle = obj.color;
+				this.ctx.fillStyle = obj.color.str();
 				this.ctx.fillRect(i,j,1,1);
 			}
 		}
@@ -339,7 +339,7 @@ function Triangle (p1,p2,p3){
 	this.p1 = p1;
 	this.p2 = p2;
 	this.p3 = p3;
-	this.color = "black";
+	this.color = new RGB(0,0,0); //black
 	//storing plane normal for efficiency
 	this.calculateNormal();
 }
@@ -357,13 +357,13 @@ Triangle.prototype.inspect = function(){
 
 Triangle.prototype.clone = function(){
 	var t = new Triangle(this.p1.clone(),this.p2.clone(),this.p3.clone());
-	t.color = this.color;
+	t.color = this.color.clone();
 	t.normal = this.normal;
 	return t;
 }
 
 Triangle.prototype.draw = function(ctx,matrix){
-	ctx.fillStyle = this.color;
+	ctx.fillStyle = this.color.str();
 	ctx.beginPath();
 	var pp1 = this.p1.projection(matrix);
 	var pp2 = this.p2.projection(matrix);
@@ -372,6 +372,7 @@ Triangle.prototype.draw = function(ctx,matrix){
 	ctx.lineTo(pp2.x,pp2.y);
 	ctx.lineTo(pp3.x,pp3.y);
 	ctx.lineTo(pp1.x,pp1.y);
+	ctx.fillStyle = this.color.str();
 	ctx.fill();
 }
 
@@ -408,7 +409,7 @@ Triangle.prototype.intersectsWithPoint = function(point){
 function Line (start,end){
 	this.start = start;
 	this.end = end;
-	this.color = "black";
+	this.color = new RGB(0,0,0);
 	this.thickness = 1;
 }
 
@@ -417,7 +418,7 @@ Line.prototype.inspect = function(){
 }
 
 Line.prototype.draw = function(ctx,matrix){
-	ctx.strokeStyle = this.color;
+	ctx.strokeStyle = this.color.str();
 	ctx.lineWidth = this.thickness;
 	ctx.beginPath();
 	var sp = this.start.projection(matrix);
@@ -435,12 +436,12 @@ function Point(x,y,z){
 	this.z = z;
 	this.h = 1;
 	this.thickness = 1;
-	this.color = "black";
+	this.color = new RGB(0,0,0);
 }
 
 Point.prototype.clone = function(){
 	var p = new Point(this.x,this.y,this.z);
-	p.color = this.color;
+	p.color = this.color.clone();
 	p.thickness = this.thickness;
 	return p;
 }
@@ -479,7 +480,7 @@ Point.prototype.inspect = function(){
 
 Point.prototype.draw = function(ctx,matrix){
 		var p = this.projection(matrix);
-		ctx.fillStyle = this.color;
+		ctx.fillStyle = this.color.str();
 		ctx.fillRect(p.x,p.y,this.thickness,this.thickness);
 }
 
@@ -489,6 +490,20 @@ Point.prototype.projection = function(matrix){
 	return new Point(projection.e(1,1)/projection.e(4,1) + window.panX,projection.e(2,1)/projection.e(4,1) + window.panY,0);
 }
 
+//RGB Object
+function RGB(r,g,b){
+	this.r = r;
+	this.g = g;
+	this.b = b;
+}
+
+RGB.prototype.str = function(){
+	return "rgb("+ this.r +","+ this.g +","+ this.b +")";
+}
+
+RGB.prototype.clone = function(){
+	return new RGB(this.r,this.g,this.b);
+}
 
 //-----------------------------------------------------
 //Node Object
@@ -608,30 +623,35 @@ function k(base,lines){
 
 function makeTestTriangles(){
 
+	var c = new RGB(255,177,0);
 	var f1a = new Triangle(new Point(0,0,0),new Point(1,0,1),new Point(0,0,1));
-	f1a.color = "orange";
+	f1a.color = c;
 	var f1b = new Triangle(new Point(0,0,0),new Point(1,0,0),new Point(1,0,1));
-	f1b.color = "orange";
+	f1b.color = c;
 
+	c = new RGB(0,0,255);
 	var f2a = new Triangle(new Point(0,1,0),new Point(1,1,1),new Point(0,1,1));
 	var f2b = new Triangle(new Point(0,1,0),new Point(1,1,0),new Point(1,1,1));
-	f2a.color = "blue";
-	f2b.color = "blue";
+	f2a.color = c;
+	f2b.color = c;
 
+	c = new RGB(255,0,0);
 	var f3a = new Triangle(new Point(1,0,0),new Point(1,0,1),new Point(1,1,1));
-	f3a.color = "red";
+	f3a.color = c;
 	var f3b = new Triangle(new Point(1,0,0),new Point(1,1,0),new Point(1,1,1));
-	f3b.color = "red";
+	f3b.color = c;
 
+	c = new RGB(0,255,0);
 	var f4a = new Triangle(new Point(0,0,0),new Point(0,0,1),new Point(0,1,1));
 	var f4b = new Triangle(new Point(0,0,0),new Point(0,1,0),new Point(0,1,1));
-	f4a.color = "green";
-	f4b.color = "green";
+	f4a.color = c;
+	f4b.color = c;
 
+	c = new RGB(255,255,0);
 	var f5a = new Triangle(new Point(0,0,1),new Point(0,1,1),new Point(1,1,1));
 	var f5b = new Triangle(new Point(0,0,1),new Point(1,0,1),new Point(1,1,1));
-	f5a.color = "yellow";
-	f5b.color = "yellow";
+	f5a.color = c;
+	f5b.color = c;
 
 	var trs = [f1a,f1b,f2a,f2b,f3a,f3b,f4a,f4b,f5a,f5b];
 
