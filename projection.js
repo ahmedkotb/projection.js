@@ -23,9 +23,9 @@ function wheel(event){
 	}
 	if (delta){
 		if (delta < 0)
-			window.scaleFactor -= 0.1;
+			window.pengine.zoom(-1);
 		else
-			window.scaleFactor += 0.1;
+			window.pengine.zoom(1);
 	}
 	window.pengine.refresh();
 }
@@ -96,7 +96,6 @@ function PEngine(canvas){
 		this.nx = canvas.width;
 		this.ny = canvas.height;
 
-		this.perspective = false;
 		//canvas setup
 		canvas.onmouseup = onMouseUp;
 		canvas.onmousedown = onMouseDown;
@@ -111,7 +110,8 @@ function PEngine(canvas){
 
 		//initial camera parameter
 		this.pov= new Point(3,3,3);
-		this.gv = new Point(0,0,0).subtract(this.pov);
+		this.center = new Point(0,0,0);
+		this.gv = this.center.subtract(this.pov);
 		this.tv = new Point(0,0,1);
 
 		this.triangles = makeTestTriangles();
@@ -121,8 +121,8 @@ function PEngine(canvas){
 			this.tree.add(this.triangles[i]);
 		}
 
-		this.init();
-		this.refresh();
+		//will init the scene and refresh
+		this.setPerspective(false);
 
 	}else{
 		alert("canvas is not supported");
@@ -192,6 +192,12 @@ PEngine.prototype.init = function(){
 
 PEngine.prototype.setPerspective = function(value){
 	this.perspective = value;
+	if (value){
+		this.zoom = this.zoomPerspective;
+		window.scaleFactor = 1;
+	}
+	else
+		this.zoom = this.zoomOrthograthic;
 	this.init();
 	this.refresh();
 }
@@ -234,7 +240,7 @@ PEngine.prototype.rotate = function(xang,yang,zang){
 	/*projection = yrot.x(projection);*/
 	this.pov = new Point(projection.e(1,1),projection.e(2,1),projection.e(3,1));
 	//adjust gaze vector and stand up vector
-	this.gv = new Point(0,0,0).subtract(this.pov);
+	this.gv = this.center.subtract(this.pov);
 	//TODO : ask about this sign hack
 	/*this.tv = new Point(0,0,this.pov.y/Math.abs(this.pov.y) * 3);*/
 	this.tv = new Point(0,0,3);
@@ -251,6 +257,18 @@ PEngine.prototype.move = function(dx,dy,dz){
 			[0,0,0,1],
 			]);
 	this.m = this.m.x(mdelta);
+}
+
+/* zoom in or out according to the sign (+1,-1) by changing the pov location */
+PEngine.prototype.zoomPerspective = function(sign){
+	var v = this.center;
+	v = v.subtract(this.pov);
+	this.pov = this.pov.add(v.multiplyScaler(sign*0.1));
+	this.init();
+}
+
+PEngine.prototype.zoomOrthograthic = function(sign){
+	window.scaleFactor += sign * 0.1;
 }
 
 PEngine.prototype.drawAxes = function(){
@@ -297,8 +315,9 @@ PEngine.prototype.drawTree = function(tree,point){
 PEngine.prototype.renderImage = function(){
 	//TODO:make sure that canvas size is not change at run time
 	//or nx and ny will be wrong
-	var imageData = this.ctx.createImageData(this.nx,this.ny);
+
 	var backgroundColor = new RGB(0,0,0); //black
+	var imageData = this.ctx.createImageData(this.nx,this.ny);
 
 	for (var i=0;i<this.nx;++i){
 		for (var j=0;j<this.ny;++j){
@@ -500,6 +519,7 @@ Point.prototype.projection = function(matrix){
 	return new Point(projection.e(1,1)/projection.e(4,1) + window.panX,projection.e(2,1)/projection.e(4,1) + window.panY,0);
 }
 
+//-----------------------------------------------------
 //RGB Object
 function RGB(r,g,b){
 	this.r = r;
