@@ -313,37 +313,52 @@ PEngine.prototype.drawTree = function(tree,point){
 }
 
 PEngine.prototype.renderImage = function(){
-	//TODO:make sure that canvas size is not change at run time
-	//or nx and ny will be wrong
+	//nx and ny can be changed to change the scale of the final image
 
 	var backgroundColor = new RGB(0,0,0); //black
 	var imageData = this.ctx.createImageData(this.nx,this.ny);
 
 	for (var i=0;i<this.nx;++i){
 		for (var j=0;j<this.ny;++j){
+			var hits = 0;
+			var r=0,g=0,b=0;
+			//supersampling
+			for (var ix = i;ix<i+1;ix+=0.5){
+				for (var jx = j;jx<j+1;jx+=0.5){
 
-			var us = this.l + ((this.r-this.l) * (i+0.5))/this.nx;
-			var vs = this.b + ((this.t-this.b) * (this.ny-j+0.5))/this.ny;
-			var ws = this.n;
+					var us = this.l + ((this.r-this.l) * (ix+0.5))/this.nx;
+					var vs = this.b + ((this.t-this.b) * (this.ny-jx+0.5))/this.ny;
+					var ws = this.n;
 
-			var s = this.pov.add(this.u.multiplyScaler(us).add(this.v.multiplyScaler(vs)).add(this.w.multiplyScaler(ws)));
+					var s = this.pov.add(this.u.multiplyScaler(us).add(this.v.multiplyScaler(vs)).add(this.w.multiplyScaler(ws)));
 
-			var e;
-			if (this.perspective)
-				e = this.pov;
-			else
-				e = this.pov.add(this.u.multiplyScaler(us).add(this.v.multiplyScaler(vs)));
+					var e;
+					if (this.perspective)
+						e = this.pov;
+					else
+						e = this.pov.add(this.u.multiplyScaler(us).add(this.v.multiplyScaler(vs)));
 
-			var obj = this.raytrace(s,e);
+					var obj = this.raytrace(s,e);
 
-			if (obj == null)
+					if (obj != null){
+						hits++;
+						r+= obj.color.r;
+						g+= obj.color.g;
+						b+= obj.color.b;
+					}
+				}
+			}
+
+			if (hits == 0)
 				setPixelColor(imageData,i,j,backgroundColor);
-			else
-				setPixelColor(imageData,i,j,obj.color);
+			else{
+				var c = new RGB(r/hits,g/hits,b/hits);
+				setPixelColor(imageData,i,j,c);
+			}
 
 		}
 	}
-	this.ctx.putImageData(imageData, 0, 0); // at coords 0,0
+	this.ctx.putImageData(imageData, 0, 0);
 }
 
 PEngine.prototype.raytrace = function(s,e){
