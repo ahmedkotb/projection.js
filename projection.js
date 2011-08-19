@@ -85,8 +85,7 @@ function PEngine(canvas){
 	if (canvas.getContext){
 		this.ctx = canvas.getContext("2d");
 		this.canvas = canvas;
-		//hardcoded parameters
-		//frustum parameters
+		//hardcoded frustum parameters
 		this.l = -10;
 		this.r = 10;
 		this.b = -10;
@@ -95,6 +94,11 @@ function PEngine(canvas){
 		this.f = -20;
 		this.nx = canvas.width;
 		this.ny = canvas.height;
+
+		//supersampling width (1 == no sampling , 2 = 2X sampling ..)
+		this.superSamplingWidth = 1;
+		//ambiant light vector
+		this.ambient = [0.4,0.4,0.4];
 
 		//canvas setup
 		canvas.onmouseup = onMouseUp;
@@ -109,7 +113,7 @@ function PEngine(canvas){
 		window.epsilon = 0.000001;
 
 		//initial camera parameter
-		this.pov= new Point(3,3,3);
+		this.pov = new Point(5,5,5);
 		this.center = new Point(0,0,0);
 		this.gv = this.center.subtract(this.pov);
 		this.tv = new Point(0,0,1);
@@ -122,7 +126,7 @@ function PEngine(canvas){
 		}
 
 		//will init the scene and refresh
-		this.setPerspective(false);
+		this.setPerspective(true);
 
 	}else{
 		alert("canvas is not supported");
@@ -313,7 +317,10 @@ PEngine.prototype.drawTree = function(tree,point){
 }
 
 PEngine.prototype.renderImage = function(){
+	var start = (new Date()).getTime();
 	//nx and ny can be changed to change the scale of the final image
+	var lightSource = new Point(5,5,5);
+	var cl = [1,1,1]; // light intensity
 
 	var backgroundColor = new RGB(0,0,0); //black
 	var imageData = this.ctx.createImageData(this.nx,this.ny);
@@ -323,11 +330,11 @@ PEngine.prototype.renderImage = function(){
 			var hits = 0;
 			var r=0,g=0,b=0;
 			//supersampling
-			for (var ix = i;ix<i+1;ix+=0.5){
-				for (var jx = j;jx<j+1;jx+=0.5){
+			for (var ix = 0;ix<this.superSamplingWidth;ix+=1){
+				for (var jx = 0;jx<this.superSamplingWidth;jx+=1){
 
-					var us = this.l + ((this.r-this.l) * (ix+0.5))/this.nx;
-					var vs = this.b + ((this.t-this.b) * (this.ny-jx+0.5))/this.ny;
+					var us = this.l + ((this.r-this.l) * (i+ix/this.superSamplingWidth+0.5))/this.nx;
+					var vs = this.b + ((this.t-this.b) * (this.ny-(j+jx/this.superSamplingWidth)+0.5))/this.ny;
 					var ws = this.n;
 
 					var s = this.pov.add(this.u.multiplyScaler(us).add(this.v.multiplyScaler(vs)).add(this.w.multiplyScaler(ws)));
@@ -338,13 +345,23 @@ PEngine.prototype.renderImage = function(){
 					else
 						e = this.pov.add(this.u.multiplyScaler(us).add(this.v.multiplyScaler(vs)));
 
-					var obj = this.raytrace(s,e);
+					var hitRecord = this.raytrace(s,e);
+					var obj = hitRecord[0];
 
 					if (obj != null){
 						hits++;
-						r+= obj.color.r;
-						g+= obj.color.g;
-						b+= obj.color.b;
+						var l = lightSource.subtract(hitRecord[1]);
+						l = l.getUnitVector();
+						//single sided lighting
+						//TODO:normals must be correct for each shape
+						var cosAng = Math.max(obj.normal.dot(l),0);
+						/*var cosAng = Math.abs(obj.normal.dot(l));*/
+						var reflectionVector = l.multiplyScaler(-1).add(obj.normal.multiplyScaler(2*(l.dot(obj.normal))));
+						var eyeDirection = this.pov.subtract(hitRecord[1]).getUnitVector();
+						var phong = Math.pow(Math.max(eyeDirection.dot(reflectionVector),0),256);
+						r+= Math.min(obj.color.r/255 * (this.ambient[0] + cl[0] * cosAng) + cl[0]*phong,1)*255;
+						g+= Math.min(obj.color.g/255 * (this.ambient[1] + cl[1] * cosAng) + cl[1]*phong,1)*255;
+						b+= Math.min(obj.color.b/255 * (this.ambient[2] + cl[2] * cosAng) + cl[2]*phong,1)*255;
 					}
 				}
 			}
@@ -359,11 +376,14 @@ PEngine.prototype.renderImage = function(){
 		}
 	}
 	this.ctx.putImageData(imageData, 0, 0);
+	var end = (new Date()).getTime();
+	debug("render time : " + (end-start)/1000 + " seconds");
 }
 
 PEngine.prototype.raytrace = function(s,e){
 	var min = null;
 	var mint = 100000000;
+	var intersectPoint = null;
 	for (var tri=0;tri<this.triangles.length;++tri){
 		var o = this.triangles[tri];
 		var t = - (o.normal.dot(e) - o.normal.dot(o.p1))/o.normal.dot(s.subtract(e));
@@ -372,9 +392,10 @@ PEngine.prototype.raytrace = function(s,e){
 		if (t<mint && o.intersectsWithPoint(A)){
 			mint = t;
 			min = o;
+			intersectPoint = A;
 		}
 	}
-	return min;
+	return [min,intersectPoint];
 }
 
 //-----------------------------------------------------
@@ -392,7 +413,7 @@ Triangle.prototype.calculateNormal = function(){
 	var v1 = this.p2.subtract(this.p1);
 	var v2 = this.p3.subtract(this.p1);
 	this.normal = v1.cross(v2);
-	this.normal = this.normal.divideScaler(this.normal.modulus());
+	this.normal = this.normal.getUnitVector();
 }
 
 Triangle.prototype.inspect = function(){
@@ -483,6 +504,13 @@ function Point(x,y,z){
 	this.color = new RGB(0,0,0);
 }
 
+Point.prototype.getDirection = function(){
+	return this.divideScaler(this.modulus());
+}
+
+//another name for the same function
+Point.prototype.getUnitVector = Point.prototype.getDirection;
+
 Point.prototype.clone = function(){
 	var p = new Point(this.x,this.y,this.z);
 	p.color = this.color.clone();
@@ -514,7 +542,7 @@ Point.prototype.subtract = function(point){
 	return new Point(this.x-point.x,this.y-point.y,this.z-point.z);
 }
 
-Point.prototype.add= function(point){
+Point.prototype.add = function(point){
 	return new Point(this.x+point.x,this.y+point.y,this.z+point.z);
 }
 
@@ -671,30 +699,30 @@ function makeTestTriangles(){
 
 	var c = new RGB(255,177,0);
 	var f1a = new Triangle(new Point(0,0,0),new Point(1,0,1),new Point(0,0,1));
-	f1a.color = c;
 	var f1b = new Triangle(new Point(0,0,0),new Point(1,0,0),new Point(1,0,1));
+	f1a.color = c;
 	f1b.color = c;
 
 	c = new RGB(0,0,255);
-	var f2a = new Triangle(new Point(0,1,0),new Point(1,1,1),new Point(0,1,1));
-	var f2b = new Triangle(new Point(0,1,0),new Point(1,1,0),new Point(1,1,1));
+	var f2a = new Triangle(new Point(0,1,0),new Point(0,1,1),new Point(1,1,1));
+	var f2b = new Triangle(new Point(0,1,0),new Point(1,1,1),new Point(1,1,0));
 	f2a.color = c;
 	f2b.color = c;
 
 	c = new RGB(255,0,0);
-	var f3a = new Triangle(new Point(1,0,0),new Point(1,0,1),new Point(1,1,1));
-	f3a.color = c;
+	var f3a = new Triangle(new Point(1,0,0),new Point(1,1,1),new Point(1,0,1));
 	var f3b = new Triangle(new Point(1,0,0),new Point(1,1,0),new Point(1,1,1));
+	f3a.color = c;
 	f3b.color = c;
 
 	c = new RGB(0,255,0);
 	var f4a = new Triangle(new Point(0,0,0),new Point(0,0,1),new Point(0,1,1));
-	var f4b = new Triangle(new Point(0,0,0),new Point(0,1,0),new Point(0,1,1));
+	var f4b = new Triangle(new Point(0,0,0),new Point(0,1,1),new Point(0,1,0));
 	f4a.color = c;
 	f4b.color = c;
 
 	c = new RGB(255,255,0);
-	var f5a = new Triangle(new Point(0,0,1),new Point(0,1,1),new Point(1,1,1));
+	var f5a = new Triangle(new Point(0,0,1),new Point(1,1,1),new Point(0,1,1));
 	var f5b = new Triangle(new Point(0,0,1),new Point(1,0,1),new Point(1,1,1));
 	f5a.color = c;
 	f5b.color = c;
