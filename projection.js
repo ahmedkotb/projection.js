@@ -350,18 +350,26 @@ PEngine.prototype.renderImage = function(){
 
 					if (obj != null){
 						hits++;
-						var l = lightSource.subtract(hitRecord[1]);
-						l = l.getUnitVector();
-						//single sided lighting
-						//TODO:normals must be correct for each shape
-						var cosAng = Math.max(obj.normal.dot(l),0);
-						/*var cosAng = Math.abs(obj.normal.dot(l));*/
-						var reflectionVector = l.multiplyScaler(-1).add(obj.normal.multiplyScaler(2*(l.dot(obj.normal))));
-						var eyeDirection = this.pov.subtract(hitRecord[1]).getUnitVector();
-						var phong = Math.pow(Math.max(eyeDirection.dot(reflectionVector),0),256);
-						r+= Math.min(obj.color.r/255 * (this.ambient[0] + cl[0] * cosAng) + cl[0]*phong,1)*255;
-						g+= Math.min(obj.color.g/255 * (this.ambient[1] + cl[1] * cosAng) + cl[1]*phong,1)*255;
-						b+= Math.min(obj.color.b/255 * (this.ambient[2] + cl[2] * cosAng) + cl[2]*phong,1)*255;
+						var dr= obj.color.r/255 *(this.ambient[0]);
+						var dg= obj.color.g/255 *(this.ambient[1]);
+						var db= obj.color.b/255 *(this.ambient[2]);
+
+						if (this.rayHitObject(lightSource,hitRecord[1]) == false){
+							var l = lightSource.subtract(hitRecord[1]);
+							l = l.getUnitVector();
+							//single sided lighting
+							//TODO:normals must be correct for each shape
+							var cosAng = Math.max(obj.normal.dot(l),0);
+							/*var cosAng = Math.abs(obj.normal.dot(l));*/
+							var reflectionVector = l.multiplyScaler(-1).add(obj.normal.multiplyScaler(2*(l.dot(obj.normal))));
+							var eyeDirection = this.pov.subtract(hitRecord[1]).getUnitVector();
+							//TODO:parametrize the phong control factor
+							var phong = Math.pow(Math.max(eyeDirection.dot(reflectionVector),0),256)*0.5;
+							dr+= Math.min(obj.color.r/255 * (cl[0] * cosAng) + cl[0]*phong,1);
+							dg+= Math.min(obj.color.g/255 * (cl[1] * cosAng) + cl[1]*phong,1);
+							db+= Math.min(obj.color.b/255 * (cl[2] * cosAng) + cl[2]*phong,1);
+						}
+						r+=dr*255;g+=dg*255;b+=db*255;
 					}
 				}
 			}
@@ -378,6 +386,18 @@ PEngine.prototype.renderImage = function(){
 	this.ctx.putImageData(imageData, 0, 0);
 	var end = (new Date()).getTime();
 	debug("render time : " + (end-start)/1000 + " seconds");
+}
+
+PEngine.prototype.rayHitObject = function(s,e){
+	for (var tri=0;tri<this.triangles.length;++tri){
+		var o = this.triangles[tri];
+		var t = - (o.normal.dot(e) - o.normal.dot(o.p1))/o.normal.dot(s.subtract(e));
+		var A = e.add(s.subtract(e).multiplyScaler(t));
+		if (t < window.epsilon) continue;
+		if (o.intersectsWithPoint(A))
+			return true;
+	}
+	return false;
 }
 
 PEngine.prototype.raytrace = function(s,e){
