@@ -330,7 +330,7 @@ PEngine.prototype.drawTree = function(tree,point){
 PEngine.prototype.renderImage = function(){
 	var start = (new Date()).getTime();
 	//nx and ny can be changed to change the scale of the final image
-	var lightSource = new Point(5,5,5);
+	var lightSource = new Point(0,0,5);
 	var cl = [1,1,1]; // light intensity
 
 	var backgroundColor = new RGB(0,0,0); //black
@@ -768,8 +768,12 @@ function makeTestTriangles(){
 	var f6b = new Triangle(new Point(3,-3,0),new Point(-3,3,0),new Point(-3,-3,0));
 	f6a.color = c;
 	f6b.color = c;
+	var f7a = new Triangle(new Point(3,-3,-0.001),new Point(-3,3,-0.001),new Point(3,3,-0.001));
+	var f7b = new Triangle(new Point(3,-3,-0.001),new Point(-3,-3,-0.001),new Point(-3,3,-0.001));
+	f7a.color = c;
+	f7b.color = c;
 
-	var trs = [f1a,f1b,f2a,f2b,f3a,f3b,f4a,f4b,f5a,f5b,f6a,f6b];
+	var trs = [f1a,f1b,f2a,f2b,f3a,f3b,f4a,f4b,f5a,f5b,f6a,f6b,f7a,f7b];
 
 	return trs;
 	/*var t1 = new Triangle(new Point(0,-1,0.5),new Point(1,0,0.5),new Point(0,1,0.5));*/
