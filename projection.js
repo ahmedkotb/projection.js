@@ -1,9 +1,21 @@
+//helper functions
 function debug(str){
 	document.getElementById("debug").innerHTML += str + "<br/>";
 }
 
 function toRadians(angle){
 	return angle * Math.PI / 360;
+}
+
+Array.prototype.multiply = function(value){
+	for (var i=0;i< this.length;++i)
+		this[i]*=value;
+}
+
+Array.prototype.addArray = function(otherArray){
+	if (otherArray.length != this.length) return;
+	for (var i=0;i< this.length;++i)
+		this[i]+=otherArray[i];
 }
 
 /* Register Mouse Wheel */
@@ -185,7 +197,6 @@ PEngine.prototype.init = function(){
 					]);
 			var mv = mCamRotate.x(mCamTrans);
 
-			/*this.m = mo.x(mv);*/
 			if (this.perspective)
 				this.m = mo.x(mp).x(mv);
 			else
@@ -328,8 +339,8 @@ PEngine.prototype.renderImage = function(){
 	for (var i=0;i<this.nx;++i){
 		for (var j=0;j<this.ny;++j){
 			var hits = 0;
-			var r=0,g=0,b=0;
-			//supersampling
+			var c = [0,0,0]; //pixel color vector
+			//supersampling loops
 			for (var ix = 0;ix<this.superSamplingWidth;ix+=1){
 				for (var jx = 0;jx<this.superSamplingWidth;jx+=1){
 
@@ -350,9 +361,11 @@ PEngine.prototype.renderImage = function(){
 
 					if (obj != null){
 						hits++;
-						var dr= obj.color.r/255 *(this.ambient[0]);
-						var dg= obj.color.g/255 *(this.ambient[1]);
-						var db= obj.color.b/255 *(this.ambient[2]);
+						var objColor = obj.color.getVector();
+						var delta = [0,0,0];
+
+						for (var x=0;x<3;++x)
+							delta[x] += objColor[x]/255 * this.ambient[x];
 
 						if (this.rayHitObject(lightSource,hitRecord[1]) == false){
 							var l = lightSource.subtract(hitRecord[1]);
@@ -365,21 +378,20 @@ PEngine.prototype.renderImage = function(){
 							var eyeDirection = this.pov.subtract(hitRecord[1]).getUnitVector();
 							//TODO:parametrize the phong control factor
 							var phong = Math.pow(Math.max(eyeDirection.dot(reflectionVector),0),256)*0.5;
-							dr+= Math.min(obj.color.r/255 * (cl[0] * cosAng) + cl[0]*phong,1);
-							dg+= Math.min(obj.color.g/255 * (cl[1] * cosAng) + cl[1]*phong,1);
-							db+= Math.min(obj.color.b/255 * (cl[2] * cosAng) + cl[2]*phong,1);
+
+							for (var x=0;x<3;++x)
+								delta[x] += Math.min(objColor[x]/255 * (cl[x] * cosAng) + cl[x]*phong,1);
 						}
-						r+=dr*255;g+=dg*255;b+=db*255;
+						delta.multiply(255);
+						c.addArray(delta);
 					}
 				}
 			}
 
 			if (hits == 0)
 				setPixelColor(imageData,i,j,backgroundColor);
-			else{
-				var c = new RGB(r/hits,g/hits,b/hits);
-				setPixelColor(imageData,i,j,c);
-			}
+			else
+				setPixelColor(imageData,i,j,new RGB(c[0]/hits,c[1]/hits,c[2]/hits));
 
 		}
 	}
@@ -597,6 +609,10 @@ RGB.prototype.str = function(){
 
 RGB.prototype.clone = function(){
 	return new RGB(this.r,this.g,this.b);
+}
+
+RGB.prototype.getVector = function(){
+		return [this.r,this.g,this.b];
 }
 
 //-----------------------------------------------------
