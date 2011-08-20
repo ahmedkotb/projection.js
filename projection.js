@@ -111,6 +111,8 @@ function PEngine(canvas){
 		this.superSamplingWidth = 1;
 		//ambiant light vector
 		this.ambient = [0.4,0.4,0.4];
+		//reflection iterations (0 == no reflections)
+		this.maxReflectionIterations = 0;
 
 		//canvas setup
 		canvas.onmouseup = onMouseUp;
@@ -330,9 +332,6 @@ PEngine.prototype.drawTree = function(tree,point){
 PEngine.prototype.renderImage = function(){
 	var start = (new Date()).getTime();
 	//nx and ny can be changed to change the scale of the final image
-	var lightSource = new Point(0,0,5);
-	var cl = [1,1,1]; // light intensity
-
 	var backgroundColor = new RGB(0,0,0); //black
 	var imageData = this.ctx.createImageData(this.nx,this.ny);
 
@@ -356,35 +355,16 @@ PEngine.prototype.renderImage = function(){
 					else
 						e = this.pov.add(this.u.multiplyScaler(us).add(this.v.multiplyScaler(vs)));
 
-					var hitRecord = this.raytrace(s,e);
-					var obj = hitRecord[0];
+					//shoot the ray
+					var hit = this.rayColor(s,e,0,0);
 
-					if (obj != null){
+					if (hit[0]){
 						hits++;
-						var objColor = obj.color.getVector();
-						var delta = [0,0,0];
-
-						for (var x=0;x<3;++x)
-							delta[x] += objColor[x]/255 * this.ambient[x];
-
-						if (this.rayHitObject(lightSource,hitRecord[1]) == false){
-							var l = lightSource.subtract(hitRecord[1]);
-							l = l.getUnitVector();
-							//single sided lighting
-							//TODO:normals must be correct for each shape
-							var cosAng = Math.max(obj.normal.dot(l),0);
-							/*var cosAng = Math.abs(obj.normal.dot(l));*/
-							var reflectionVector = l.multiplyScaler(-1).add(obj.normal.multiplyScaler(2*(l.dot(obj.normal))));
-							var eyeDirection = this.pov.subtract(hitRecord[1]).getUnitVector();
-							//TODO:parametrize the phong control factor
-							var phong = Math.pow(Math.max(eyeDirection.dot(reflectionVector),0),256)*0.5;
-
-							for (var x=0;x<3;++x)
-								delta[x] += Math.min(objColor[x]/255 * (cl[x] * cosAng) + cl[x]*phong,1);
-						}
+						var delta = hit[1];
 						delta.multiply(255);
 						c.addArray(delta);
 					}
+
 				}
 			}
 
@@ -400,6 +380,66 @@ PEngine.prototype.renderImage = function(){
 	debug("render time : " + (end-start)/1000 + " seconds");
 }
 
+PEngine.prototype.rayColor = function(s,e,minDist,depth){
+	if (depth == this.maxReflectionIterations+1) return [false,0];
+
+	var lightSource = new Point(5,5,5);
+	var cl = [1,1,1]; // light intensity
+
+	var hitRecord = this.raytrace(s,e,minDist);
+	var obj = hitRecord[0];
+	if (obj != null){
+		var objColor = obj.color.getVector();
+		var delta = [0,0,0];
+		//ambient color
+		for (var x=0;x<3;++x)
+			delta[x] += objColor[x]/255 * this.ambient[x];
+
+		//direct light sources //TODO: iterate on all light sources
+		if (this.rayHitObject(lightSource,hitRecord[1]) == false){
+			var l = lightSource.subtract(hitRecord[1]);
+			l = l.getUnitVector();
+			//single sided lighting
+			//TODO:normals must be correct for each shape
+			var cosAng = Math.max(obj.normal.dot(l),0);
+			var cosAng = Math.abs(obj.normal.dot(l));
+			var reflectionVector = l.multiplyScaler(-1).add(obj.normal.multiplyScaler(2*(l.dot(obj.normal))));
+			var eyeDirection = this.pov.subtract(hitRecord[1]).getUnitVector();
+			//TODO:parametrize the phong control factor
+			var phong = Math.pow(Math.max(eyeDirection.dot(reflectionVector),0),256)*0.5;
+
+			for (var x=0;x<3;++x)
+				delta[x] += Math.min(objColor[x]/255 * (cl[x] * cosAng) + cl[x]*phong,1);
+		}
+		//calculate reflection
+		var eyeDirection = hitRecord[1].subtract(e).getUnitVector();
+		var refVector = eyeDirection.subtract(obj.normal.multiplyScaler(-2*eyeDirection.dot(obj.normal)));
+		var ret = this.rayColor(refVector,hitRecord[1],window.epsilon,depth+1);
+		if (ret[0]){
+			ret[1][0]*= obj.specularColor[0];
+			ret[1][1]*= obj.specularColor[1];
+			ret[1][2]*= obj.specularColor[2];
+			delta.addArray(ret[1]);
+		}
+		return [true,delta];
+	}else {
+		return [false,0];
+	}
+}
+
+PEngine.prototype.rayColorTest = function(s,e,depth){
+	var c = [0,0,0];
+	if (depth == 1) return c;
+	var rec = this.raytrace(s,e);
+	//calculate reflection vector given eye direction vector
+	var eyeDirection = rec[1].subtract(e).getUnitVector();
+	var refVector = eyeDirection.subtract(rec[0].normal.multiplyScaler(-2*eyeDirection.dot(rec[0].normal)));
+	var nextC = this.rayColor(refVector,rec[1],depth+1);
+	nextC.multiply(rec[0].specularColor);
+	c.addArray(nextC);
+	return c;
+}
+
 PEngine.prototype.rayHitObject = function(s,e){
 	for (var tri=0;tri<this.triangles.length;++tri){
 		var o = this.triangles[tri];
@@ -412,7 +452,7 @@ PEngine.prototype.rayHitObject = function(s,e){
 	return false;
 }
 
-PEngine.prototype.raytrace = function(s,e){
+PEngine.prototype.raytrace = function(s,e,minDistance){
 	var min = null;
 	var mint = 100000000;
 	var intersectPoint = null;
@@ -420,7 +460,7 @@ PEngine.prototype.raytrace = function(s,e){
 		var o = this.triangles[tri];
 		var t = - (o.normal.dot(e) - o.normal.dot(o.p1))/o.normal.dot(s.subtract(e));
 		var A = e.add(s.subtract(e).multiplyScaler(t));
-		if (t < 0) continue;
+		if (t < minDistance) continue;
 		if (t<mint && o.intersectsWithPoint(A)){
 			mint = t;
 			min = o;
@@ -439,6 +479,9 @@ function Triangle (p1,p2,p3){
 	this.color = new RGB(0,0,0); //black
 	//storing plane normal for efficiency
 	this.calculateNormal();
+
+	//specular color factor TODO: move that to a material object ..
+	this.specularColor = [0,0,0];
 }
 
 Triangle.prototype.calculateNormal = function(){
@@ -774,6 +817,7 @@ function makeTestTriangles(){
 	f7b.color = c;
 
 	var trs = [f1a,f1b,f2a,f2b,f3a,f3b,f4a,f4b,f5a,f5b,f6a,f6b,f7a,f7b];
+	for (var i=0;i<trs.length;++i) trs[i].specularColor = [0.5,0.5,0.5];
 
 	return trs;
 	/*var t1 = new Triangle(new Point(0,-1,0.5),new Point(1,0,0.5),new Point(0,1,0.5));*/
