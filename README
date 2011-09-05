@@ -1,0 +1,20 @@
+projection.js is an implementation of the basic 3d orthogonal/perspective projection algorithms.
+The purpose was to learn the basics of the computer graphics field , also to learn more about javascript.
+Tested only on chrome , sorry for that.
+
+Currently implemented :
+-drawing points/lines/triangles.
+-rotation and zoom.
+-BSP to order the rastering of triangles.
+-basic rendering which includes
+--anti-aliasing
+--simple lightening (diffuse shading , phong lightening , ambient lightening)
+--shadows
+--reflections (need more testing , disabled by default)
+
+Licensed under :
+--Creative commons Attribution 3.0
+--http://creativecommons.org/licenses/by/3.0/
+
+Author : Ahmed Kotb
+Email : kotbcorp [at] gmail.com
