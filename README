@@ -13,8 +13,12 @@ Currently implemented :
 --reflections (need more testing , disabled by default)
 
 Licensed under :
---Creative commons Attribution 3.0
---http://creativecommons.org/licenses/by/3.0/
+- Creative commons Attribution 3.0
+- http://creativecommons.org/licenses/by/3.0/
+
+Credits:
+sylvester.js Matrix and vector multiplication was used in this project.
+link : http://sylvester.jcoglan.com/
 
 Author : Ahmed Kotb
 Email : kotbcorp [at] gmail.com
