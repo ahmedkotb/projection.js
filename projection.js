@@ -1,9 +1,21 @@
+//helper functions
 function debug(str){
 	document.getElementById("debug").innerHTML += str + "<br/>";
 }
 
 function toRadians(angle){
 	return angle * Math.PI / 360;
+}
+
+Array.prototype.multiply = function(value){
+	for (var i=0;i< this.length;++i)
+		this[i]*=value;
+}
+
+Array.prototype.addArray = function(otherArray){
+	if (otherArray.length != this.length) return;
+	for (var i=0;i< this.length;++i)
+		this[i]+=otherArray[i];
 }
 
 /* Register Mouse Wheel */
@@ -23,9 +35,9 @@ function wheel(event){
 	}
 	if (delta){
 		if (delta < 0)
-			window.scaleFactor -= 0.1;
+			window.pengine.zoom(-1);
 		else
-			window.scaleFactor += 0.1;
+			window.pengine.zoom(1);
 	}
 	window.pengine.refresh();
 }
@@ -73,11 +85,19 @@ function onMouseUp(){
 	canvas.style.cursor = "crosshair";
 }
 
+function setPixelColor(imageData,x,y,color){
+    var index = (x + y * imageData.width) * 4;
+    imageData.data[index+0] = color.r;
+    imageData.data[index+1] = color.g;
+    imageData.data[index+2] = color.b;
+    imageData.data[index+3] = color.a;
+}
+
 function PEngine(canvas){
 	if (canvas.getContext){
 		this.ctx = canvas.getContext("2d");
-		//hardcoded parameters
-		//frustum parameters
+		this.canvas = canvas;
+		//hardcoded frustum parameters
 		this.l = -10;
 		this.r = 10;
 		this.b = -10;
@@ -87,7 +107,13 @@ function PEngine(canvas){
 		this.nx = canvas.width;
 		this.ny = canvas.height;
 
-		this.perspective = false;
+		//supersampling width (1 == no sampling , 2 = 2X sampling ..)
+		this.superSamplingWidth = 1;
+		//ambiant light vector
+		this.ambient = [0.4,0.4,0.4];
+		//reflection iterations (0 == no reflections)
+		this.maxReflectionIterations = 0;
+
 		//canvas setup
 		canvas.onmouseup = onMouseUp;
 		canvas.onmousedown = onMouseDown;
@@ -101,15 +127,21 @@ function PEngine(canvas){
 		window.epsilon = 0.000001;
 
 		//initial camera parameter
-		this.pov= new Point(5,5,5);
-		this.gv = new Point(0,0,0).subtract(this.pov);
+		this.pov = new Point(5,5,5);
+		this.center = new Point(0,0,0);
+		this.gv = this.center.subtract(this.pov);
 		this.tv = new Point(0,0,1);
 
+		this.triangles = makeTestTriangles();
 		//init the tree
-		this.tree = makeTestTree();
+		this.tree = new Node(this.triangles[0]);
+		for (var i=1;i<this.triangles.length;++i){
+			this.tree.add(this.triangles[i]);
+		}
 
-		this.init();
-		this.refresh();
+		//will init the scene and refresh
+		this.setPerspective(true);
+
 	}else{
 		alert("canvas is not supported");
 	}
@@ -167,7 +199,6 @@ PEngine.prototype.init = function(){
 					]);
 			var mv = mCamRotate.x(mCamTrans);
 
-			/*this.m = mo.x(mv);*/
 			if (this.perspective)
 				this.m = mo.x(mp).x(mv);
 			else
@@ -178,6 +209,12 @@ PEngine.prototype.init = function(){
 
 PEngine.prototype.setPerspective = function(value){
 	this.perspective = value;
+	if (value){
+		this.zoom = this.zoomPerspective;
+		window.scaleFactor = 1;
+	}
+	else
+		this.zoom = this.zoomOrthograthic;
 	this.init();
 	this.refresh();
 }
@@ -220,7 +257,7 @@ PEngine.prototype.rotate = function(xang,yang,zang){
 	/*projection = yrot.x(projection);*/
 	this.pov = new Point(projection.e(1,1),projection.e(2,1),projection.e(3,1));
 	//adjust gaze vector and stand up vector
-	this.gv = new Point(0,0,0).subtract(this.pov);
+	this.gv = this.center.subtract(this.pov);
 	//TODO : ask about this sign hack
 	/*this.tv = new Point(0,0,this.pov.y/Math.abs(this.pov.y) * 3);*/
 	this.tv = new Point(0,0,3);
@@ -239,17 +276,29 @@ PEngine.prototype.move = function(dx,dy,dz){
 	this.m = this.m.x(mdelta);
 }
 
+/* zoom in or out according to the sign (+1,-1) by changing the pov location */
+PEngine.prototype.zoomPerspective = function(sign){
+	var v = this.center;
+	v = v.subtract(this.pov);
+	this.pov = this.pov.add(v.multiplyScaler(sign*0.1));
+	this.init();
+}
+
+PEngine.prototype.zoomOrthograthic = function(sign){
+	window.scaleFactor += sign * 0.1;
+}
+
 PEngine.prototype.drawAxes = function(){
 	var org = new Point(0,0,0);
 	var xaxis = new Line(org,new Point(7,0,0));
 	var yaxis = new Line(org,new Point(0,7,0));
 	var zaxis = new Line(org,new Point(0,0,7));
 	xaxis.thickness = 1;
-	xaxis.color = "red";
+	xaxis.color = new RGB(255,0,0); //red
 	yaxis.thickness = 1;
-	yaxis.color = "green";
+	yaxis.color = new RGB(0,255,0); //green
 	zaxis.thickness = 1;
-	zaxis.color = "blue";
+	zaxis.color = new RGB(0,0,255); //blue
 	this.draw(xaxis);
 	this.draw(yaxis);
 	this.draw(zaxis);
@@ -260,8 +309,8 @@ PEngine.prototype.drawGrid = function(){
 	for (var i=-5;i<=5;i++){
 		var l = new Line(new Point(i,-hlen,0),new Point(i,hlen,0));
 		var l2 = new Line(new Point(hlen,i,0),new Point(-hlen,i,0));
-		l.color = "rgb(200,200,200)";
-		l2.color = "rgb(200,200,200)";
+		l.color = new RGB(200,200,200); //gray
+		l2.color = new RGB(200,200,200); //gray
 		this.draw(l);
 		this.draw(l2);
 	}
@@ -279,37 +328,182 @@ PEngine.prototype.drawTree = function(tree,point){
 		this.drawTree(tree.positive,point);
 	}
 }
+
+PEngine.prototype.renderImage = function(){
+	var start = (new Date()).getTime();
+	//nx and ny can be changed to change the scale of the final image
+	var backgroundColor = new RGB(0,0,0); //black
+	var imageData = this.ctx.createImageData(this.nx,this.ny);
+
+	for (var i=0;i<this.nx;++i){
+		for (var j=0;j<this.ny;++j){
+			var hits = 0;
+			var c = [0,0,0]; //pixel color vector
+			//supersampling loops
+			for (var ix = 0;ix<this.superSamplingWidth;ix+=1){
+				for (var jx = 0;jx<this.superSamplingWidth;jx+=1){
+
+					var us = this.l + ((this.r-this.l) * (i+ix/this.superSamplingWidth+0.5))/this.nx;
+					var vs = this.b + ((this.t-this.b) * (this.ny-(j+jx/this.superSamplingWidth)+0.5))/this.ny;
+					var ws = this.n;
+
+					var s = this.pov.add(this.u.multiplyScaler(us).add(this.v.multiplyScaler(vs)).add(this.w.multiplyScaler(ws)));
+
+					var e;
+					if (this.perspective)
+						e = this.pov;
+					else
+						e = this.pov.add(this.u.multiplyScaler(us).add(this.v.multiplyScaler(vs)));
+
+					//shoot the ray
+					var hit = this.rayColor(s,e,0,0);
+
+					if (hit[0]){
+						hits++;
+						var delta = hit[1];
+						delta.multiply(255);
+						c.addArray(delta);
+					}
+
+				}
+			}
+
+			if (hits == 0)
+				setPixelColor(imageData,i,j,backgroundColor);
+			else
+				setPixelColor(imageData,i,j,new RGB(c[0]/hits,c[1]/hits,c[2]/hits));
+
+		}
+	}
+	this.ctx.putImageData(imageData, 0, 0);
+	var end = (new Date()).getTime();
+	debug("render time : " + (end-start)/1000 + " seconds");
+}
+
+PEngine.prototype.rayColor = function(s,e,minDist,depth){
+	if (depth == this.maxReflectionIterations+1) return [false,0];
+
+	var lightSource = new Point(5,5,5);
+	var cl = [1,1,1]; // light intensity
+
+	var hitRecord = this.raytrace(s,e,minDist);
+	var obj = hitRecord[0];
+	if (obj != null){
+		var objColor = obj.color.getVector();
+		var delta = [0,0,0];
+		//ambient color
+		for (var x=0;x<3;++x)
+			delta[x] += objColor[x]/255 * this.ambient[x];
+
+		//direct light sources //TODO: iterate on all light sources
+		if (this.rayHitObject(lightSource,hitRecord[1]) == false){
+			var l = lightSource.subtract(hitRecord[1]);
+			l = l.getUnitVector();
+			//single sided lighting
+			//TODO:normals must be correct for each shape
+			var cosAng = Math.max(obj.normal.dot(l),0);
+			var cosAng = Math.abs(obj.normal.dot(l));
+			var reflectionVector = l.multiplyScaler(-1).add(obj.normal.multiplyScaler(2*(l.dot(obj.normal))));
+			var eyeDirection = this.pov.subtract(hitRecord[1]).getUnitVector();
+			//TODO:parametrize the phong control factor
+			var phong = Math.pow(Math.max(eyeDirection.dot(reflectionVector),0),256)*0.5;
+
+			for (var x=0;x<3;++x)
+				delta[x] += Math.min(objColor[x]/255 * (cl[x] * cosAng) + cl[x]*phong,1);
+		}
+		//calculate reflection
+		var eyeDirection = hitRecord[1].subtract(e).getUnitVector();
+		var refVector = eyeDirection.subtract(obj.normal.multiplyScaler(-2*eyeDirection.dot(obj.normal)));
+		var ret = this.rayColor(refVector,hitRecord[1],window.epsilon,depth+1);
+		if (ret[0]){
+			ret[1][0]*= obj.specularColor[0];
+			ret[1][1]*= obj.specularColor[1];
+			ret[1][2]*= obj.specularColor[2];
+			delta.addArray(ret[1]);
+		}
+		return [true,delta];
+	}else {
+		return [false,0];
+	}
+}
+
+PEngine.prototype.rayColorTest = function(s,e,depth){
+	var c = [0,0,0];
+	if (depth == 1) return c;
+	var rec = this.raytrace(s,e);
+	//calculate reflection vector given eye direction vector
+	var eyeDirection = rec[1].subtract(e).getUnitVector();
+	var refVector = eyeDirection.subtract(rec[0].normal.multiplyScaler(-2*eyeDirection.dot(rec[0].normal)));
+	var nextC = this.rayColor(refVector,rec[1],depth+1);
+	nextC.multiply(rec[0].specularColor);
+	c.addArray(nextC);
+	return c;
+}
+
+PEngine.prototype.rayHitObject = function(s,e){
+	for (var tri=0;tri<this.triangles.length;++tri){
+		var o = this.triangles[tri];
+		var t = - (o.normal.dot(e) - o.normal.dot(o.p1))/o.normal.dot(s.subtract(e));
+		var A = e.add(s.subtract(e).multiplyScaler(t));
+		if (t < window.epsilon) continue;
+		if (o.intersectsWithPoint(A))
+			return true;
+	}
+	return false;
+}
+
+PEngine.prototype.raytrace = function(s,e,minDistance){
+	var min = null;
+	var mint = 100000000;
+	var intersectPoint = null;
+	for (var tri=0;tri<this.triangles.length;++tri){
+		var o = this.triangles[tri];
+		var t = - (o.normal.dot(e) - o.normal.dot(o.p1))/o.normal.dot(s.subtract(e));
+		var A = e.add(s.subtract(e).multiplyScaler(t));
+		if (t < minDistance) continue;
+		if (t<mint && o.intersectsWithPoint(A)){
+			mint = t;
+			min = o;
+			intersectPoint = A;
+		}
+	}
+	return [min,intersectPoint];
+}
+
 //-----------------------------------------------------
 //Triangle Object
 function Triangle (p1,p2,p3){
 	this.p1 = p1;
 	this.p2 = p2;
 	this.p3 = p3;
-	this.color = "black";
+	this.color = new RGB(0,0,0); //black
 	//storing plane normal for efficiency
 	this.calculateNormal();
+
+	//specular color factor TODO: move that to a material object ..
+	this.specularColor = [0,0,0];
 }
 
 Triangle.prototype.calculateNormal = function(){
 	var v1 = this.p2.subtract(this.p1);
 	var v2 = this.p3.subtract(this.p1);
 	this.normal = v1.cross(v2);
-	this.normal = this.normal.divideScaler(this.normal.modulus());
+	this.normal = this.normal.getUnitVector();
 }
 
 Triangle.prototype.inspect = function(){
-	return "p1 : " + this.p1.inspect() + "\np2: " + this.p1.inspect() + "\np3: " + this.p3.inspect();
+	return "p1 : " + this.p1.inspect() + "\np2: " + this.p2.inspect() + "\np3: " + this.p3.inspect();
 }
 
 Triangle.prototype.clone = function(){
 	var t = new Triangle(this.p1.clone(),this.p2.clone(),this.p3.clone());
-	t.color = this.color;
+	t.color = this.color.clone();
 	t.normal = this.normal;
 	return t;
 }
 
 Triangle.prototype.draw = function(ctx,matrix){
-	ctx.fillStyle = this.color;
+	ctx.fillStyle = this.color.str();
 	ctx.beginPath();
 	var pp1 = this.p1.projection(matrix);
 	var pp2 = this.p2.projection(matrix);
@@ -318,6 +512,7 @@ Triangle.prototype.draw = function(ctx,matrix){
 	ctx.lineTo(pp2.x,pp2.y);
 	ctx.lineTo(pp3.x,pp3.y);
 	ctx.lineTo(pp1.x,pp1.y);
+	ctx.fillStyle = this.color.str();
 	ctx.fill();
 }
 
@@ -325,12 +520,36 @@ Triangle.prototype.f = function(point){
 	return this.normal.dot(point.subtract(this.p1));
 }
 
+/* tests if given point intersects this triangle */
+Triangle.prototype.intersectsWithPoint = function(point){
+	//TODO: the function will be used by raytracing , so the points
+	//given will already be in the plane of the triangle
+	//so first check can be removed for efficency
+	//first check that the point belongs to the same plane as the triangle
+	if (Math.abs(this.normal.dot(point) - this.normal.dot(this.p1)) > window.epsilon)
+		return false;
+	//second make sure point belongs to the triangle
+	var pts = [this.p1,this.p2,this.p3,this.p1,this.p2];
+	for (var i=0;i<3;++i){
+		var a = pts[i];
+		var b = pts[i+1];
+		var c = pts[i+2];
+		var v1 = b.subtract(a);
+		var v2 = point.subtract(a);
+		var v3 = c.subtract(a);
+		var res = v1.cross(v2).dot(v1.cross(v3));
+		if (Math.abs(res) < window.epsilon) res = 0;
+		if (res < 0)
+			return false;
+	}
+	return true;
+}
 //-----------------------------------------------------
 //Line Object
 function Line (start,end){
 	this.start = start;
 	this.end = end;
-	this.color = "black";
+	this.color = new RGB(0,0,0);
 	this.thickness = 1;
 }
 
@@ -339,7 +558,7 @@ Line.prototype.inspect = function(){
 }
 
 Line.prototype.draw = function(ctx,matrix){
-	ctx.strokeStyle = this.color;
+	ctx.strokeStyle = this.color.str();
 	ctx.lineWidth = this.thickness;
 	ctx.beginPath();
 	var sp = this.start.projection(matrix);
@@ -357,11 +576,21 @@ function Point(x,y,z){
 	this.z = z;
 	this.h = 1;
 	this.thickness = 1;
-	this.color = "black";
+	this.color = new RGB(0,0,0);
 }
 
+Point.prototype.getDirection = function(){
+	return this.divideScaler(this.modulus());
+}
+
+//another name for the same function
+Point.prototype.getUnitVector = Point.prototype.getDirection;
+
 Point.prototype.clone = function(){
-	return new Point(this.x,this.y,this.z);
+	var p = new Point(this.x,this.y,this.z);
+	p.color = this.color.clone();
+	p.thickness = this.thickness;
+	return p;
 }
 
 Point.prototype.modulus = function(){
@@ -388,7 +617,7 @@ Point.prototype.subtract = function(point){
 	return new Point(this.x-point.x,this.y-point.y,this.z-point.z);
 }
 
-Point.prototype.add= function(point){
+Point.prototype.add = function(point){
 	return new Point(this.x+point.x,this.y+point.y,this.z+point.z);
 }
 
@@ -398,7 +627,7 @@ Point.prototype.inspect = function(){
 
 Point.prototype.draw = function(ctx,matrix){
 		var p = this.projection(matrix);
-		ctx.fillStyle = this.color;
+		ctx.fillStyle = this.color.str();
 		ctx.fillRect(p.x,p.y,this.thickness,this.thickness);
 }
 
@@ -408,6 +637,26 @@ Point.prototype.projection = function(matrix){
 	return new Point(projection.e(1,1)/projection.e(4,1) + window.panX,projection.e(2,1)/projection.e(4,1) + window.panY,0);
 }
 
+//-----------------------------------------------------
+//RGB Object
+function RGB(r,g,b){
+	this.r = r;
+	this.g = g;
+	this.b = b;
+	this.a = 0xff; // opaque
+}
+
+RGB.prototype.str = function(){
+	return "rgb("+ this.r +","+ this.g +","+ this.b +")";
+}
+
+RGB.prototype.clone = function(){
+	return new RGB(this.r,this.g,this.b);
+}
+
+RGB.prototype.getVector = function(){
+		return [this.r,this.g,this.b];
+}
 
 //-----------------------------------------------------
 //Node Object
@@ -525,31 +774,64 @@ function k(base,lines){
 	}
 }
 
-function makeTestTree(){
+function makeTestTriangles(){
+
+	var c = new RGB(255,177,0);
 	var f1a = new Triangle(new Point(0,0,0),new Point(1,0,1),new Point(0,0,1));
-	f1a.color = "orange";
 	var f1b = new Triangle(new Point(0,0,0),new Point(1,0,0),new Point(1,0,1));
-	f1b.color = "orange";
+	f1a.color = c;
+	f1b.color = c;
 
-	var f2a = new Triangle(new Point(0,1,0),new Point(1,1,1),new Point(0,1,1));
-	var f2b = new Triangle(new Point(0,1,0),new Point(1,1,0),new Point(1,1,1));
-	f2a.color = "blue";
-	f2b.color = "blue";
+	c = new RGB(0,0,255);
+	var f2a = new Triangle(new Point(0,1,0),new Point(0,1,1),new Point(1,1,1));
+	var f2b = new Triangle(new Point(0,1,0),new Point(1,1,1),new Point(1,1,0));
+	f2a.color = c;
+	f2b.color = c;
 
-	var f3a = new Triangle(new Point(1,0,0),new Point(1,0,1),new Point(1,1,1));
-	f3a.color = "red";
+	c = new RGB(255,0,0);
+	var f3a = new Triangle(new Point(1,0,0),new Point(1,1,1),new Point(1,0,1));
 	var f3b = new Triangle(new Point(1,0,0),new Point(1,1,0),new Point(1,1,1));
-	f3b.color = "red";
+	f3a.color = c;
+	f3b.color = c;
 
+	c = new RGB(0,255,0);
 	var f4a = new Triangle(new Point(0,0,0),new Point(0,0,1),new Point(0,1,1));
-	var f4b = new Triangle(new Point(0,0,0),new Point(0,1,0),new Point(0,1,1));
-	f4a.color = "green";
-	f4b.color = "green";
+	var f4b = new Triangle(new Point(0,0,0),new Point(0,1,1),new Point(0,1,0));
+	f4a.color = c;
+	f4b.color = c;
 
-	var f5a = new Triangle(new Point(0,0,1),new Point(0,1,1),new Point(1,1,1));
+	c = new RGB(255,255,0);
+	var f5a = new Triangle(new Point(0,0,1),new Point(1,1,1),new Point(0,1,1));
 	var f5b = new Triangle(new Point(0,0,1),new Point(1,0,1),new Point(1,1,1));
-	f5a.color = "yellow";
-	f5b.color = "yellow";
+	f5a.color = c;
+	f5b.color = c;
+
+	c = new RGB(200,200,200);
+	var f6a = new Triangle(new Point(3,-3,0),new Point(3,3,0),new Point(-3,3,0));
+	var f6b = new Triangle(new Point(3,-3,0),new Point(-3,3,0),new Point(-3,-3,0));
+	f6a.color = c;
+	f6b.color = c;
+	var f7a = new Triangle(new Point(3,-3,-0.001),new Point(-3,3,-0.001),new Point(3,3,-0.001));
+	var f7b = new Triangle(new Point(3,-3,-0.001),new Point(-3,-3,-0.001),new Point(-3,3,-0.001));
+	f7a.color = c;
+	f7b.color = c;
+
+	var trs = [f1a,f1b,f2a,f2b,f3a,f3b,f4a,f4b,f5a,f5b,f6a,f6b,f7a,f7b];
+	for (var i=0;i<trs.length;++i) trs[i].specularColor = [0.5,0.5,0.5];
+
+	return trs;
+	/*var t1 = new Triangle(new Point(0,-1,0.5),new Point(1,0,0.5),new Point(0,1,0.5));*/
+	/*t1.color = "lightblue";*/
+	/*var t2 = new Triangle(new Point(0,0,0),new Point(1,0,0),new Point(0,0,1));*/
+	/*t2.color = "yellow";*/
+	/*var t3 = new Triangle(new Point(5,-5,0),new Point(5,5,0),new Point(-5,5,0));*/
+	/*t3.color = "lightgray";*/
+	/*var t4 = new Triangle(new Point(5,-5,0),new Point(-5,5,0),new Point(-5,-5,0));*/
+	/*t4.color = "lightgray";*/
+	/*var trs = [t1,t2,t3,t4];*/
+}
+
+function makeTestTree(){
 
 	root = new Node(f1a);
 	root.add(f1b);

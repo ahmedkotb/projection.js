@@ -26,10 +26,13 @@
     <br>
     <div align="center">
       <button id= "perspectiveButton" onclick="togglePerspectiveProjection()" >
-        enable perspective projection
+        disable perspective projection
+      </button>
+      <button onclick="window.pengine.renderImage()" >
+        render
       </button>
       <br>
-      <canvas id="canvas" width="550" height="550" style="border:solid;">
+      <canvas id="canvas" width="300" height="300" style="border:solid;">
       projection canvas
       </canvas>
     </div>
